@@ -14,11 +14,12 @@ enum class DataTypes : uint8_t {
     Resend = 1,
     KeepAlive = 2,
     ACK = 3,
-    String = 4,
-    File = 5,
-    Connection = 6,
-    ConnectionApproval = 7,
-    EndConnection = 8,
+    Connection = 4,
+    ConnectionApproval = 5,
+    EndConnection = 6,
+    String = 7,
+    File = 8,
+    UnKnown = 255,
 };
 
 struct DataSegment {

@@ -9,8 +9,6 @@
 
 #include "types.h"
 #include "connector.h"
-#include "receiver.h"
-#include "sender.h"
 #include "structs.hpp"
 
 using namespace std;

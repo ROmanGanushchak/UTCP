@@ -1,10 +1,8 @@
-Add async messages for start/quit(Maybe add request message about the receivment allocation)
+Add interface for custom types(files/strings) / Add file exchange
 Add keep-alive checks and prints
 Lua script
 
-
-Rewrite the buffer to regular buffer;
-Solve the problem with resending no place to save
+Change keep-alive to polite one that just informs the other side that it is alive
 
 
 Today:

@@ -1,6 +1,5 @@
 #include <cstring>
 #include <iostream>
-#include "types.h"
 #include "crc.h"
 using namespace std;
 
@@ -18,4 +17,8 @@ u16 getCrc(char* data, int size) {
 
 bool checkCrc(u16 crc, char *data, int size) {
     return crc == getCrc(data, size);
+}
+
+void initCrc(DataSegment* seg) {
+    seg->crc = getCrc(((char*)seg)+4, seg->dataLength + sizeof(DataSegment) - 4);
 }

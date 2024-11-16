@@ -85,6 +85,28 @@ int ModQueue<T>::del(int seq) {
     return index;
 }
 
+template <typename T>
+vector<T> ModQueue<T>::iniq(u16 seq) {
+    vector<T> _deleted;
+    for (int i=0; i<states.size(); i++) {
+        if (states[i] == States::Empty) continue;
+        if (states[i] == States::Active) {
+            _deleted.push_back(arr[i]);
+            elemCount--;
+        }
+        states[i] = States::Empty;
+    }
+    first = seq;
+    return _deleted;
+}
+
+template <typename T> // no delete adopted for this func
+void ModQueue<T>::initFirst(u16 seq) {
+    if (elemCount != 0) 
+        throw invalid_argument("The sent queue has messages so it cant change the first element");
+    first = seq;
+}
+
 
 
 SentMessagesQueue::SentMessagesQueue(int initCapacity) : ModQueue(initCapacity) {}

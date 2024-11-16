@@ -13,6 +13,7 @@
 #define uchar unsigned char
 #define DEBUG_PRINT false
 #define _min(a, b) (((a) < (b)) ? (a) : (b))
+#define _max(a, b) (((a) > (b)) ? (a) : (b))
 
 #if DEBUG_PRINT
     #define dprintf(fmt, ...) printf(fmt, ##__VA_ARGS__)

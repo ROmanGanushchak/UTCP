@@ -3,43 +3,32 @@
 #include "types.h"
 #include "data.h"
 #include "structs.hpp"
-#include "sender.h"
-#include "receiver.h"
+#include "socket.h"
 #include "fragmentator.h"
-
-struct Connection {
-    std::string ip;
-    u16 port;
-    std::string tIp;
-    u16 tPort;
-    u64 lastReception;
-    u64 lastReceivedKeepAlive;
-    bool isApproved;
-};
 
 class Connector {
 private:
     ReceiveQueue<DataSegment*> queue;
     ReceiveQueue<Fragmentator*> toSend;
-
-    SocketReader reader;
-    SocketSender sender;
     SentMessagesQueue sent;
     ReceivedMessagesQueue received;
     std::list<TimerUnit> timers;
-    bool isListenerActive;
-    bool isWorking;
 
-    std::thread listener;
-    Connection connection;
+    Socket sock;
+    bool isWorking;
+    
     Defragmentator *currentDef;
 
+    u64 lastReception;
+    u64 lastSendedKeepAlive;
+    bool isKeepAliveWarning;
+    u16 nextSeq;
     int leastAck;
-    int nextAck;
     int timeToMiss = 1000;
     int maxSentCount = 2;
-    u16 maxDataSize = 300;
-    void sendConnectionMessage(std::string ip, u16 port, DataTypes type);
+    u16 maxDataSize = 1;
+    void sendConnectionMessage(std::string ip, u16 port, DataTypes type, bool isConfirmed);
+    bool sysMessageHandler(DataSegment* segment, u64 now);
 
 public:
     Connector(std::string ip, u16 port);
@@ -49,7 +38,8 @@ public:
     void endConncetion();
     std::pair<bool, std::string> setMaxFragmentSize(u16 size);
     void sendAck(u16 seq);
-    void quit();
+    void sendAck(u16 seq, std::string ip, u16 port);
+    void quit(bool conf=true);
 
     ReceiveQueue<Fragmentator*>& getToSendQueue() {return toSend;}
 };

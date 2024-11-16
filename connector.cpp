@@ -10,27 +10,24 @@
 using namespace std;
 
 Connector::Connector(string ip, u16 port) : queue(1), toSend(2),
-    reader(queue, ip, port), sent(128), 
-    isListenerActive(true),
-    listener(&SocketReader::startReading, &reader, std::ref(isListenerActive)),
-    sender(),
+    sock(queue, ip, port), sent(128), 
     isWorking(false),
-    connection((Connection){.ip=ip, .port=port, .tIp="", .tPort=0})
+    isKeepAliveWarning(false)
 {
     leastAck = -1;
-    nextAck = 0;
+    nextSeq = 0;
+    sock.startReading();
 };
 
 void Connector::start() {
     isWorking = true;
     while (isWorking) {
-        if (!timers.size() && sent.empty() && queue.isEmpty() && toSend.isEmpty()) continue;
+        // if (!timers.size() && sent.empty() && queue.isEmpty() && toSend.isEmpty()) continue;
         auto nowFullTime = std::chrono::system_clock::now();
         auto now = std::chrono::duration_cast<std::chrono::milliseconds>(nowFullTime.time_since_epoch()).count();
 
         while (timers.size() && timers.front().endTime < now) {
             TimerUnit timer = timers.front();
-            // printf("Timer finished for %d\n", timer.seq);
             auto [elem, status] = sent.get(timer.seq);
             assert(status == ReturnCodes::Success && "The value is present in timer but was deleted from SentQueue");
 
@@ -40,7 +37,7 @@ void Connector::start() {
                 timers.pop_front();
                 break;
             } else {
-                sender.sendSegment(elem->segment);
+                sock.sendSegment(elem->segment);
                 elem->sentCount++;
                 timers.pop_front();
                 timers.push_back((TimerUnit){.seq=timer.seq, .endTime=now + timeToMiss});
@@ -48,26 +45,21 @@ void Connector::start() {
         }
 
         vector<DataSegment*> packets;
-        // printf("Got %d fragments\n");
+        bool isReceivedMessage = !queue.isEmpty();
         while (!queue.isEmpty()) {
             DataSegment* segment = queue.front();
             queue.pop();
-            printf("Fragment received: type: %d, seq: %d\n", segment->type, segment->seq);
-            if (segment->type == DataTypes::ACK) {
-                auto [elem, status] = sent.get(segment->seq);
-                dprintf("Received ACK, status: %d, isSucess: %d\n", status, status == ReturnCodes::Success);
-                if (status == ReturnCodes::Success) {
-                    timers.erase(elem->timer);
-                    sent.markAsProcessed(segment->seq, true);
-                }
+            dprintf("Fragment received: type: %d, seq: %d\n", segment->type, segment->seq);
+            if (sysMessageHandler(segment, now)) {
+                free(segment);
                 continue;
             }
+            sendAck(segment->seq);
 
             auto fragments = received.add(segment);
             dprintf("Added fragments %d, received fragments:\n", segment->seq);
             for (auto fragment : fragments) {
                 dprintf("Fragment from received: %d\n", fragment->seq);
-                sendAck(fragment->seq);
                 if (fragment->type != DataTypes::PureData && !fragment->isNextFragment) {
                     packets.push_back(fragment);
                     continue;
@@ -85,30 +77,8 @@ void Connector::start() {
         for (auto packet : packets) {
             dprintf("Received packet with seq: %d, type: %d\n", packet->seq, packet->type);
             switch (packet->type) {
-            case DataTypes::Connection: {
-                if (connection.tPort != 0) {
-                    printf("Trying to connect while last connection is still active\n");
-                    break;
-                }
-                ReceivedConnectionData *data = reinterpret_cast<ReceivedConnectionData*>(packet->getExtraData());
-                connection.tIp = data->ip;
-                connection.tPort = data->port;
-                connection.isApproved = true;
-                printf("Got data to connect ip: %s, port: %d\n", connection.tIp.c_str(), connection.tPort);
-                sendConnectionMessage(connection.tIp, connection.tPort, DataTypes::ConnectionApproval);
-                break;
-            }
-            case DataTypes::ConnectionApproval: {
-                ReceivedConnectionData *data = reinterpret_cast<ReceivedConnectionData*>(packet->getExtraData());
-                if (data->ip != connection.tIp || data->port != connection.tPort) {
-                    printf("The connection approval receined for incorrect ip address or port");
-                    return;
-                }
-                connection.isApproved = true;
-                break;
-            }
             case DataTypes::String: {
-                printf("Got data: %s\n", (char*)packet->getExtraData());
+                printf("%.*s\n", packet->dataLength, (char*)packet->getExtraData());
                 break;
             }
             default:
@@ -117,33 +87,45 @@ void Connector::start() {
             free(packet);
         }
 
-        // if (connection.tPort !=0 && connection.isActive && connection.lastReception - now > 5000 && connection.lastReceivedKeepAlive - now > 5000) {
-        //     DataSegment* keep = (DataSegment*) malloc(sizeof(DataSegment));
-        //     *keep = (DataSegment){.dataLength=0, .seq=nextAck++, .type=DataTypes::KeepAlive, .isNextFragment=false};
-        //     keep->crc = getCrc(((char*)keep)+4, sizeof(DataSegment)-4);
-        //     toSend.add(new Fragmentator((char*)keep, sizeof(DataSegment), DataTypes::KeepAlive, true));
-        // }
+        // keep-alive
+        if (sock.getIsConfigured()) {
+            if (isReceivedMessage) {
+                lastReception = now;
+                if (isKeepAliveWarning) {
+                    printf("The other side is back\n");
+                    isKeepAliveWarning = false;
+                }
+            }
+            if (now - lastReception > 5000 && now - lastSendedKeepAlive > 5000) {
+                DataSegment keep = (DataSegment){.dataLength=0, .seq=0, .type=DataTypes::KeepAlive, .isNextFragment=false};
+                initCrc(&keep);
+                sock.sendSegment(&keep);
+                lastSendedKeepAlive = now;
+            }
+            if (!isKeepAliveWarning && now - lastReception > 10000) {
+                printf("The other side doesnt correspond to sended messages\nIf u with to quit the connection write 'quit' command\n");
+                isKeepAliveWarning = true;
+            }
+        }
 
         while (!toSend.isEmpty()) {
             Fragmentator* fr = toSend.front();
             dprintf("Received frame %hu\n", fr->fragmentSize);
-
             dprintf("Size: %d IsActivated: %d\n", fr->fragmentSize, fr->isActivated());
-            if (!fr->isActivated())
-                nextAck += fr->activate(nextAck, 1);
+            if (!fr->isActivated()) nextSeq += fr->activate(nextSeq, maxDataSize);
+            
             while (!fr->isFinished()) {
                 DataSegment* segment = fr->getNextFragment();
-                printf("ToSend sending: %d, %d\n", segment->seq, segment->type);
                 dprintf("Adding element with seq: %d\n", segment->seq);
                 timers.push_back((TimerUnit){.seq=segment->seq, .endTime=now + timeToMiss});
 
                 bool wasAdded = sent.add((DataSegmentDescriptor){.segment=segment, .timer=--timers.end(), .sentCount=0});
                 if (!wasAdded) {
                     // toSend.add(segment);
-                    printf("Critical error, the element was not added\n");
+                    printf("Critical error, the element was not added\nTrying to add seq: %d\n", segment->seq);
                     break;
                 }
-                sender.sendSegment(segment);
+                sock.sendSegment(segment);
             }
             if (fr->isFinished()) {
                 delete fr;
@@ -154,30 +136,91 @@ void Connector::start() {
     }
 }
 
-void Connector::sendConnectionMessage(string ip, u16 port, DataTypes type) {
-    sender.configure(ip, port);
+bool Connector::sysMessageHandler(DataSegment* seg, u64 now) {
+    switch(seg->type) {
+    case DataTypes::ACK: {
+        auto [elem, status] = sent.get(seg->seq);
+        dprintf("Received ACK, status: %d, isSucess: %d\n", status, status == ReturnCodes::Success);
+        if (status == ReturnCodes::Success) {
+            timers.erase(elem->timer);
+            sent.markAsProcessed(seg->seq, true);
+        }
+        return true;
+    }
+    case DataTypes::KeepAlive: {
+        DataSegment _seg = (DataSegment){.dataLength=0, .seq=0, .type=DataTypes::UnKnown, .isNextFragment=false};
+        initCrc(&_seg);
+        sock.sendSegment(&_seg);
+        return true;
+    }
+    case DataTypes::Connection: {
+        if (sock.getIsConfigured()) {
+            printf("Trying to connect while last connection is still active\n");
+            return true;
+        }
+        ReceivedConnectionData *data = reinterpret_cast<ReceivedConnectionData*>(seg->getExtraData());
+        dprintf("Got data to connect ip: %s, port: %d\n", connection.tIp.c_str(), connection.tPort);
+        received.iniq(seg->seq+1);
+        timers.clear();
+        sendConnectionMessage(data->ip, data->port, DataTypes::ConnectionApproval, true);
+        sendAck(seg->seq, data->ip, data->port);
+        lastReception = now;
+        lastSendedKeepAlive = now;
+        return true;
+    }
+    case DataTypes::ConnectionApproval: {
+        ReceivedConnectionData *data = reinterpret_cast<ReceivedConnectionData*>(seg->getExtraData());
+        auto [ip, port] = sock.getSenderData();
+        if (data->ip != ip || data->port != port) {
+            printf("The connection approval receined for incorrect ip address or port");
+            return true;
+        }
+        received.iniq(seg->seq+1);
+        sock.confirmConfiguration();
+        timers.clear();
+        sendAck(seg->seq);
+        lastReception = now;
+        lastSendedKeepAlive = now;
+        return true;
+    }
+    case DataTypes::EndConnection: {
+        printf("The other side decided to end the connection\n");
+        quit(false);
+        return true;
+    }
+    case DataTypes::UnKnown: 
+        return true;
+    }
+    return false;
+}
+
+void Connector::sendConnectionMessage(string ip, u16 port, DataTypes type, bool isConfirmed) {
+    sock.configure(ip, port, (isConfirmed) ? Active : ConfirmAwait);
     DataSegment *seg = (DataSegment*) malloc(sizeof(DataSegment));
-    *seg = {.dataLength=connection.port, .seq=0, .type=type, .isNextFragment=false};
-    seg->crc = getCrc(((char*)seg)+4, sizeof(DataSegment)-4);
-    Fragmentator *f = new Fragmentator(reinterpret_cast<char*>(seg), (u16)seg->getFullLength(), type, true);
-    toSend.add(f);
+    *seg = {.dataLength=0, .seq=0, .type=type, .isNextFragment=false};
+    initCrc(seg);
+    printf("Connection message seq: %d\n", seg->seq);
+    toSend.add(new Fragmentator(reinterpret_cast<char*>(seg), (u16)seg->getFullLength(), type, true));
 }
 
 void Connector::sendAck(u16 seq) {
     DataSegment seg = (DataSegment){.dataLength=0, .seq=seq, .type=DataTypes::ACK, .isNextFragment=false};
-    seg.crc = getCrc(reinterpret_cast<char*>(&seg)+4, sizeof(DataSegment)-4);
-    sender.sendSegment(&seg);
+    initCrc(&seg);
+    sock.sendSegment(&seg);
+}
+
+void Connector::sendAck(u16 seq, string ip, u16 port) {
+    DataSegment seg = (DataSegment){.dataLength=0, .seq=seq, .type=DataTypes::ACK, .isNextFragment=false};
+    initCrc(&seg);
+    sock.sendSegmentCust(&seg, ip, port);
 }
 
 void Connector::connect(string ip, u16 port) {
-    if (connection.isApproved == true || connection.port == 0) {
+    if (sock.getIsConfigured()) {
         printf("Curently the device is connected or tryes to connect, end the connection first to connect to other device\n");
         return;
     }
-    connection.tIp = ip;
-    connection.tPort = port;
-    connection.isApproved = false;
-    sendConnectionMessage(ip, port, DataTypes::Connection);
+    sendConnectionMessage(ip, port, DataTypes::Connection, false);
 }
 
 void Connector::finish() {
@@ -197,6 +240,21 @@ pair<bool, string> Connector::setMaxFragmentSize(u16 size) {
     return {false, ""};
 }
 
-void Connector::quit() {
-
+void Connector::quit(bool conf) {
+    if (!sock.getIsConfigured()) return;
+    printf("The quit was executed\n");
+    if (conf) {
+        DataSegment _seg = (DataSegment){.dataLength=0, .seq=0, .type=DataTypes::EndConnection, .isNextFragment=false};
+        initCrc(&_seg);
+        sock.sendSegment(&_seg);
+    }
+    sock.configure("", 0, SenderStates::InActive);
+    vector<DataSegmentDescriptor> sended = sent.iniq(0);
+    for (auto elem : sended) {
+        free(elem.segment);
+        timers.erase(elem.timer);
+    }
+    vector<DataSegment*> _received = received.iniq(0);
+    for (auto elem : _received) free(elem);
+    timers.clear();
 }

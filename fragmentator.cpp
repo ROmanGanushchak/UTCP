@@ -31,7 +31,7 @@ Fragmentator::Fragmentator(Fragmentator&& other) noexcept : data(other.data) {
 u16 Fragmentator::activate(u16 seq, u16 fragmentSize) {
     this->seq = seq;
     this->fragmentSize = fragmentSize;
-    return ceil((this->size-sizeof(DataSegment)) / (double)fragmentSize);
+    return _max(ceil((this->size-sizeof(DataSegment)*isHeader) / ((double)fragmentSize)), 1);
 }
 
 DataSegment* Fragmentator::getNextFragment() {
@@ -49,9 +49,9 @@ DataSegment* Fragmentator::getNextFragment() {
     }
     seg->seq = this->seq++;
     seg->dataLength = size;
-    seg->crc = getCrc(reinterpret_cast<char*>(seg)+4, size+sizeof(DataSegment)-4);
     seg->type = isFirst ? type : DataTypes::PureData;
     seg->isNextFragment = top + size != this->size;
+    initCrc(seg);
     top += size;
     return seg;
 }
@@ -87,6 +87,7 @@ pair<bool, DataSegment*> Defragmentator::addNextFrag(DataSegment* data) {
     addData((char*)data->getExtraData(), data->dataLength);
     if (data->isNextFragment) return {false, NULL};
     auto temp = reinterpret_cast<DataSegment*>(this->data);
+    temp->dataLength = size - sizeof(DataSegment);
     this->data = NULL;
     return {true, temp};
 }

@@ -6,12 +6,11 @@ set(CMAKE_CXX_COMPILER "g++")
 
 set(SOURCE_FILES
     main.cpp
-    receiver.cpp
-    sender.cpp
+    socket.cpp
     data.cpp
     connector.cpp
     fragmentator.cpp
-    queues.cpp
+    structs.cpp
     crc.cpp)
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libgcc -static-libstdc++ -static")

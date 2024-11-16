@@ -75,6 +75,8 @@ protected:
 public:
     ModQueue(int initCapacity=64, int firstIndex=0);
     void resize(int newSize);
+    std::vector<T> iniq(u16 seq);
+    void initFirst(u16 seq);
     // may return NULL as T* if index is invalid
     std::pair<T*, ReturnCodes> get(int seq);
     bool empty() {return elemCount != 0;}
