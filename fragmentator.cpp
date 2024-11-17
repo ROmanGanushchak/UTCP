@@ -6,48 +6,35 @@
 #include "structs.hpp"
 using namespace std;
 
-Fragmentator::Fragmentator(char* data, u16 size, DataTypes type, bool isHeader) {
+Fragmentator::Fragmentator(char* data, u32 size, DataTypes type, bool isHeader) {
     this->data = data;
     this->size = size;
     this->type = type;
     this->top = 0;
-    this->fragmentSize = USHRT_MAX;
     this->isHeader = isHeader;
 }
 
 Fragmentator::~Fragmentator() {
-    dprintf("Called fragment deconstructor\n");
     if (this->data) {
         free(this->data);
         this->data = NULL;
     }
 }
 
-Fragmentator::Fragmentator(Fragmentator&& other) noexcept : data(other.data) {
-    other.data = nullptr; 
-    dprintf("The ownership of Fragment was moved\n");
-}
-
-u16 Fragmentator::activate(u16 seq, u16 fragmentSize) {
-    this->seq = seq;
-    this->fragmentSize = fragmentSize;
-    return _max(ceil((this->size-sizeof(DataSegment)*isHeader) / ((double)fragmentSize)), 1);
-}
-
-DataSegment* Fragmentator::getNextFragment() {
+DataSegment* Fragmentator::getNextFragment(u16 seq, u16 maxSize) {
     DataSegment* seg; u16 size; bool isFirst = top == 0;
-    if (isFirst && isHeader && fragmentSize+sizeof(DataSegment) >= this->size) {
+    if (isFirst && isHeader && maxSize+sizeof(DataSegment) >= this->size) {
         size = this->size - sizeof(DataSegment);
         top = sizeof(DataSegment);
         seg = reinterpret_cast<DataSegment*>(data);   
         this->data = NULL;
     } else {
         if (isFirst) top = sizeof(DataSegment);
-        size = _min(fragmentSize, this->size-top);
+        size = _min(maxSize, this->size-top);
         seg = createDataSegment(type, top+size == this->size, size);
         memcpy((char*)seg->getExtraData(), data+top, size);
     }
-    seg->seq = this->seq++;
+    seg->seq = seq;
     seg->dataLength = size;
     seg->type = isFirst ? type : DataTypes::PureData;
     seg->isNextFragment = top + size != this->size;
@@ -60,12 +47,11 @@ bool Fragmentator::isFinished() {
     return size == top;
 }
 
-bool Fragmentator::isActivated() {
-    return fragmentSize != USHRT_MAX;
-}
-
 
 Defragmentator::Defragmentator() : data(NULL), size(0), cap(0) {}
+Defragmentator::~Defragmentator() {
+    if (data) free(data);
+}
 
 void Defragmentator::addData(char* data, int size) {
     if (this->size + size > cap) {
@@ -94,4 +80,8 @@ pair<bool, DataSegment*> Defragmentator::addNextFrag(DataSegment* data) {
 
 DataSegment* Defragmentator::get() {
     return reinterpret_cast<DataSegment*>(data);
+}
+
+Seg fragment(char* data, u16 size, u16 maxSize, u16 seq, bool isNext, DataTypes type) {
+
 }

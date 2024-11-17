@@ -10,6 +10,7 @@ set(SOURCE_FILES
     data.cpp
     connector.cpp
     fragmentator.cpp
+    fileFragment.cpp
     structs.cpp
     crc.cpp)
 

@@ -48,7 +48,16 @@ typedef struct {
     int sentCount;
 } DataSegmentDescriptor;
 
+struct FileHeader {
+    u16 fileNameLength;
+};
+
+struct Seg {
+    DataSegment* seg;
+    char* data;
+    int dataSize;
+};
+
 DataSegment* createDataSegment(DataTypes type, bool isNextFrag=false, int buffer=0);
-u32 ipToInt(std::string ip);
-std::string ipToStr(u32 ip);
+Seg getSeg(int seq, DataTypes type, bool isNext, u16 wantedSize, u16 maxSize=USHRT_MAX);
 #endif

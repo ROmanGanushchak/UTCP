@@ -20,14 +20,9 @@ DataSegment* createDataSegment(DataTypes type, bool isNextFrag, int buffer) {
     return segment;
 }
 
-u32 ipToInt(string ip) {
-    u32 a, b, c, d;
-    sscanf(ip.c_str(), "%u.%u.%u.%u", &a, &b, &c, &d);
-    return (a << 24) | (b << 16) | (c << 8) | d;
-}
-
-string ipToStr(u32 ip) {
-    char buffer[16];
-    snprintf(buffer, 16, "%u.%u.%u.%u", ip >> 24, ip >> 16 & 0xFF, ip >> 8 & 0xFF, ip & 0xFF);
-    return string(buffer);
+Seg getSeg(int seq, DataTypes type, bool isNext, u16 wantedSize, u16 maxSize) {
+    u16 size = _min(maxSize, wantedSize);
+    DataSegment* seg = (DataSegment*)malloc (sizeof(DataSegment)+size);
+    *seg = (DataSegment){.dataLength=size, .seq=seq, .type=type, .isNextFragment=isNext};
+    return (Seg){.seg=seg, .data=((char*)seg)+sizeof(DataSegment), size};
 }

@@ -6,6 +6,7 @@
 #include "crc.h"
 #include "connector.h"
 #include "types.h"
+#include "fileFragment.h"
 
 using namespace std;
 
@@ -60,12 +61,16 @@ void Connector::start() {
             dprintf("Added fragments %d, received fragments:\n", segment->seq);
             for (auto fragment : fragments) {
                 dprintf("Fragment from received: %d\n", fragment->seq);
-                if (fragment->type != DataTypes::PureData && !fragment->isNextFragment) {
+                if (fragment->type != DataTypes::PureData && !fragment->isNextFragment && fragment->type != DataTypes::File) {
                     packets.push_back(fragment);
                     continue;
                 }
-                if (fragment->type != DataTypes::PureData) 
-                    currentDef = new Defragmentator();
+                if (fragment->type != DataTypes::PureData) {
+                    if (fragment->type == DataTypes::File)
+                        currentDef = new FileDefragmentator();
+                    else 
+                        currentDef = new Defragmentator();
+                }
                 auto [isFinished, packet] = currentDef->addNextFrag(fragment);
                 if (!isFinished) continue;
                 if (packet != NULL) packets.push_back(packet); 
@@ -88,34 +93,33 @@ void Connector::start() {
         }
 
         // keep-alive
-        if (sock.getIsConfigured()) {
-            if (isReceivedMessage) {
-                lastReception = now;
-                if (isKeepAliveWarning) {
-                    printf("The other side is back\n");
-                    isKeepAliveWarning = false;
-                }
-            }
-            if (now - lastReception > 5000 && now - lastSendedKeepAlive > 5000) {
-                DataSegment keep = (DataSegment){.dataLength=0, .seq=0, .type=DataTypes::KeepAlive, .isNextFragment=false};
-                initCrc(&keep);
-                sock.sendSegment(&keep);
-                lastSendedKeepAlive = now;
-            }
-            if (!isKeepAliveWarning && now - lastReception > 10000) {
-                printf("The other side doesnt correspond to sended messages\nIf u with to quit the connection write 'quit' command\n");
-                isKeepAliveWarning = true;
-            }
-        }
+        // if (sock.getIsConfigured()) {
+        //     if (isReceivedMessage) {
+        //         lastReception = now;
+        //         if (isKeepAliveWarning) {
+        //             printf("The other side is back\n");
+        //             isKeepAliveWarning = false;
+        //         }
+        //     }
+        //     if (now - lastReception > 5000 && now - lastSendedKeepAlive > 5000) {
+        //         DataSegment keep = (DataSegment){.dataLength=0, .seq=0, .type=DataTypes::KeepAlive, .isNextFragment=false};
+        //         initCrc(&keep);
+        //         sock.sendSegment(&keep);
+        //         lastSendedKeepAlive = now;
+        //     }
+        //     if (!isKeepAliveWarning && now - lastReception > 50000) {
+        //         printf("The other side doesnt correspond to sended messages\nIf u with to quit the connection write 'quit' command\n");
+        //         isKeepAliveWarning = true;
+        //     }
+        // }
 
         while (!toSend.isEmpty()) {
-            Fragmentator* fr = toSend.front();
+            FragmentatorI* fr = toSend.front();
             dprintf("Received frame %hu\n", fr->fragmentSize);
             dprintf("Size: %d IsActivated: %d\n", fr->fragmentSize, fr->isActivated());
-            if (!fr->isActivated()) nextSeq += fr->activate(nextSeq, maxDataSize);
-            
+
             while (!fr->isFinished()) {
-                DataSegment* segment = fr->getNextFragment();
+                DataSegment* segment = fr->getNextFragment(nextSeq++, maxDataSize);
                 dprintf("Adding element with seq: %d\n", segment->seq);
                 timers.push_back((TimerUnit){.seq=segment->seq, .endTime=now + timeToMiss});
 
@@ -128,6 +132,7 @@ void Connector::start() {
                 sock.sendSegment(segment);
             }
             if (fr->isFinished()) {
+                printf("The fr was cleared\n");
                 delete fr;
                 toSend.pop();
             }

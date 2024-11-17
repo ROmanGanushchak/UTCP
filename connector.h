@@ -9,7 +9,7 @@
 class Connector {
 private:
     ReceiveQueue<DataSegment*> queue;
-    ReceiveQueue<Fragmentator*> toSend;
+    ReceiveQueue<FragmentatorI*> toSend;
     SentMessagesQueue sent;
     ReceivedMessagesQueue received;
     std::list<TimerUnit> timers;
@@ -17,7 +17,7 @@ private:
     Socket sock;
     bool isWorking;
     
-    Defragmentator *currentDef;
+    DefragmentatorI *currentDef;
 
     u64 lastReception;
     u64 lastSendedKeepAlive;
@@ -26,7 +26,7 @@ private:
     int leastAck;
     int timeToMiss = 1000;
     int maxSentCount = 2;
-    u16 maxDataSize = 1;
+    u16 maxDataSize = 1000;
     void sendConnectionMessage(std::string ip, u16 port, DataTypes type, bool isConfirmed);
     bool sysMessageHandler(DataSegment* segment, u64 now);
 
@@ -41,7 +41,7 @@ public:
     void sendAck(u16 seq, std::string ip, u16 port);
     void quit(bool conf=true);
 
-    ReceiveQueue<Fragmentator*>& getToSendQueue() {return toSend;}
+    ReceiveQueue<FragmentatorI*>& getToSendQueue() {return toSend;}
 };
 
 #endif

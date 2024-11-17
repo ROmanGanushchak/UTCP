@@ -4,26 +4,34 @@
 #include "data.h"
 #include "crc.h"
 
-class Fragmentator {
+class FragmentatorI {
+public:
+    virtual DataSegment* getNextFragment(u16 seq, u16 maxSize) = 0;
+    virtual bool isFinished() = 0;
+    virtual ~FragmentatorI() = default;
+};
+
+class Fragmentator : public FragmentatorI {
 private:
     u32 top;
-    u16 seq;
     char *data;
-    u16 size;
+    u32 size;
     DataTypes type;
     bool isHeader;
 public:
-    u16 fragmentSize;
-    Fragmentator(char* data, u16 size, DataTypes type, bool isHeader=false);
+    Fragmentator(char* data, u32 size, DataTypes type, bool isHeader=false);
     ~Fragmentator();
-    Fragmentator(Fragmentator&& other) noexcept;
-    u16 activate(u16 seq, u16 fragmentSize);
-    DataSegment* getNextFragment();
-    bool isFinished();
-    bool isActivated();
+    DataSegment* getNextFragment(u16 seq, u16 maxSize) override;
+    bool isFinished() override;
 };
 
-class Defragmentator {
+class DefragmentatorI {
+public:
+    virtual std::pair<bool, DataSegment*> addNextFrag(DataSegment* data) = 0;
+    virtual ~DefragmentatorI() = default;
+};
+
+class Defragmentator : public DefragmentatorI {
 private:
     char *data;
     int size;
@@ -31,6 +39,7 @@ private:
     void addData(char* data, int size);
 public:
     Defragmentator();
+    ~Defragmentator();
     std::pair<bool, DataSegment*> addNextFrag(DataSegment* data);
     DataSegment* get();
 };

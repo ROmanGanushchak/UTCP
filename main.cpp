@@ -10,6 +10,7 @@
 #include "types.h"
 #include "connector.h"
 #include "structs.hpp"
+#include "fileFragment.h"
 
 using namespace std;
 
@@ -28,7 +29,7 @@ int main() {
     Connector process1(ip, port);
 
     thread processUnit(&Connector::start, &process1);
-    ReceiveQueue<Fragmentator*>& toSend = process1.getToSendQueue();
+    ReceiveQueue<FragmentatorI*>& toSend = process1.getToSendQueue();
 
     printf("\nWrite the command to be executed\n");
     string bufferStr;
@@ -37,6 +38,7 @@ int main() {
     u16 _port;
     u16 maxFragmentSize;
     u16 ips[4];
+    char bufferFileName[1024];
     std::cin.ignore();
     while (true) {
         std::getline(std::cin, bufferStr);
@@ -57,6 +59,10 @@ int main() {
         }
         if (strcmp(buffer, "quit") == 0) {
             process1.quit();
+            continue;
+        }
+        if (sscanf(buffer, "file %s", bufferFileName)) {
+            toSend.add(new FileFragmentator(bufferFileName));
             continue;
         }
         u16 len = strlen(buffer);

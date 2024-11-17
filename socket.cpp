@@ -57,6 +57,8 @@ void Socket::reading() {
     sockaddr_in _senderAddr;
     int clientAddrLen = sizeof(_senderAddr);
     while (isListening) {
+        auto [ip, port] = getListeningData();
+        printf("Listening on %s, %d\n", ip.c_str(), port);
         int recvSize = recvfrom(sock, buffer, sizeof(buffer), 0, (struct sockaddr*)&_senderAddr, &clientAddrLen);
         if (recvSize == SOCKET_ERROR) {
             std::cerr << "Recvfrom failed!" << std::endl;
@@ -71,7 +73,6 @@ void Socket::reading() {
             char senderIP[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &(_senderAddr.sin_addr), senderIP, INET_ADDRSTRLEN);
             u16 senderPort = ntohs(_senderAddr.sin_port);
-            printf("Received port: %d\n", senderPort);
             ReceivedConnectionData data = {.port=senderPort, .ip=senderIP};
             memcpy(buffer+recvSize, (char*)&data, sizeof(ReceivedConnectionData));
             tempSegment->dataLength += sizeof(ReceivedConnectionData);
@@ -119,7 +120,7 @@ int Socket::sendSegment(DataSegment *segment) {
         printf("Trying to send message without initialization of sender data\n");
         return -1;
     }
-    printf("Sending message with seq: %d, type: %d with ", segment->seq, segment->type);
+    printf("Sending message with seq: %d, type: %d size: %d with ", segment->seq, segment->type, segment->dataLength);
     printAddr(&senderAddr);
 
     std::lock_guard<std::mutex> lock(sendingMutex);
