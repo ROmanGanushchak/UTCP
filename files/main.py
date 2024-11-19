@@ -211,7 +211,45 @@ print(area)
 #     if deleten[0] % 5 == 0:
 #         check.append((deleten[0] // 5 * 5, deleten[1]))
 #     else:
-#         ters[i][1] for i in range(len(letters))]
+#         if deleten[0] > 5:
+#             check.append((deleten[0] - 5, deleten[1]))
+#
+#     for i in range(deleten[1], len(coins), 1):
+#         if coins[i] > deleten[0]:
+#             continue
+#
+#         check.append((deleten[0] - coins[i], i))
+# print(rez)
+
+# from array import array
+#
+# n, k = map(int, input().split())
+# mas = array("i", [0] * n)
+# mas[0] = 1
+#
+# for i in range(n):
+#     for a in range(i + 1, min(i + k + 1, n), 1):
+#         mas[a] += mas[i]
+#
+# print(mas[-1])
+
+# from itertools import combinations
+#
+# if True:
+#     raws = [list(input()[:]) for _ in range(3)]
+#     raws_set = [set(raw) for raw in raws]
+#
+#     rez = 0
+#
+#     letters = []
+#     index_min_raw = raws.index(min(raws, key=lambda x: len(x)))
+#     for i, letter in enumerate(raws[index_min_raw]):
+#         if all([letter in raws_set[i] for i in range(3)]):
+#             letters.append((letter, i))
+#     rez += len(letters)
+#     print(letters)
+#
+#     last_combinations = [letters[i][1] for i in range(len(letters))]
 #     new_combinations = []
 #
 #     for i in range(2, len(letters)):
@@ -374,7 +412,45 @@ print(area)
 #     left_edge = find_left(cons_weights, deleten[0])
 #     if left_edge == n and deleten[1] > max_prize:
 #         max_prize = deleten[1]
-# i in range(begin, end, 1):
+#
+#     for i in range(left_edge, n, 1):
+#         new = (deleten[0] - cons_weights[i], deleten[1] + cons_prizes[i])
+#         if new[0] not in used_weights:
+#             check.append(new)
+#             used_weights.add(new[0])
+#             used_weights_d[new[0]] = new[1]
+#         else:
+#             if used_weights_d[new[0]] < new[1]:
+#                 check.append(new)
+#                 used_weights_d[new[0]] = new[1]
+#
+# print(max_prize)
+
+# n, m = map(int, input().split())
+# mas = sorted(list(map(int, input().split())), reverse=True)
+#
+# begin = 0
+# rez = 0
+# while mas[0] != 0:
+#     for i in range(begin, min(begin + m, len(mas)), 1):
+#         mas[i] -= 1
+#     mas.sort(reverse=True)
+#
+#     rez += 1
+#
+# print(rez)
+
+# from math import ceil
+#
+# n, m = map(int, input().split())
+# mas = sorted(list(map(int, input().split())), reverse=True)
+# print(mas)
+#
+# rez = 0
+# begin, end = 0, min(m, len(mas))
+# while end < len(mas):
+#     rez += 1
+#     for i in range(begin, end, 1):
 #         mas[i] -= 1
 #
 #     a = m - 1
@@ -592,7 +668,29 @@ print(area)
 #     while current_cell != final:
 #         check.remove(current_cell)
 #         print(current_cell)
-#         for move in possible_mov, 0],
+#         for move in possible_moves:
+#             new_cell = [current_cell[0] + move[0], current_cell[1] + move[1]]
+#             if not(0 <= new_cell[0] < len(field) and 0 <= new_cell[1] < len(field[0])) \
+#                                                           or field[new_cell[0]][new_cell[1]] == 1:
+#                 continue
+#
+#             if distances[new_cell[0]][new_cell[1]][2] is None:
+#                 distance_to_final = get_distance(new_cell, final)
+#                 distances[new_cell[0]][new_cell[1]] = [distances[current_cell[0]][current_cell[1]][0] + 1, \
+#                                             distance_to_final*10,
+#                                             distances[current_cell[0]][current_cell[1]][0] + distance_to_final*10 + 1]
+#                 check.append(new_cell)
+#
+#         if check:
+#             current_cell = min(check, key=lambda x: distances[x[0]][x[1]][2])
+#         else:
+#             break
+#
+#     return distances
+#
+#
+# field = [
+#     [0, 0, 0, 0, 0, 0],
 #     [1, 0, 1, 0, 1, 0],
 #     [0, 0, 0, 0, 0, 0],
 #     [0, 1, 1, 0, 1, 0],
@@ -776,7 +874,48 @@ print(area)
 #         exit()
 #
 # try:
-#     print(max(rezmax_w in weights:
+#     print(max(rez))
+# except:
+#     print(0)
+
+# from array import array
+#
+# max_w = int(input())
+# weights = sorted(list(map(int, input().split())))
+# if max_w in weights:
+#     print(max_w)
+#     exit()
+#
+# left = 0
+# while left < len(weights) and max_w < weights[left]:
+#     left += 1
+# weights = weights[left:]
+#
+# mas = array("i", [])
+# for i in range(len(weights)):
+#     mas.append(weights[i])
+#     for a in range(len(mas)-1):
+#         if mas[a] + weights[i] > max_w:
+#             continue
+#         if mas[a] + weights[i] == max_w:
+#             print(max_w)
+#             exit()
+#         mas.append(mas[a] + weights[i])
+#
+# try:
+#     print(max(mas))
+# except:
+#     print(0)
+
+
+# from collections import deque
+# from random import randint
+# from copy import copy
+#
+# max_w = int(input())
+# # weights = sorted([randint(1, 5) for i in range(30)], reverse=True) #list(map(int, input().split()))
+# weights = sorted(list(map(int, input().split())), reverse=True)
+# if max_w in weights:
 #     print(max_w)
 #     exit()
 #
@@ -904,4 +1043,3 @@ print(area)
 #     print(max(list(rez)))
 # except:
 #     print(0)
-ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºð­ºîþ

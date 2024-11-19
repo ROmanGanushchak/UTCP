@@ -64,8 +64,8 @@ template <typename T>
 bool ModQueue<T>::add(T elem, u32 size) {
     int seq = getAck(elem);
     int index = getIndex(seq);
-    if (windowUsed + size > window || seq < first || seq > first + 2*arr.size()) {// states[index] != States::Empty
-        printf("Not added, seq: %d, size: %d, windwo: %d, index: %d, first: %d, arrSize: %d\n", seq, windowUsed+size, window, index, first, arr.size());
+    if (seq < first || seq > first + 2*arr.size()) {// windowUsed + size > window,     states[index] != States::Empty 
+        // printf("Not added, seq: %d, size: %d, window: %d, index: %d, first: %d, arrSize: %d\n", seq, windowUsed+size, window, index, first, arr.size());
         return false;
     }
     if (states[index] != States::Empty) {
@@ -78,7 +78,7 @@ bool ModQueue<T>::add(T elem, u32 size) {
     arr[index] = elem;
     states[index] = States::Active;
     elemCount++;
-    windowUsed += size;
+    // windowUsed += size;
     return true;
 }
 
@@ -119,6 +119,11 @@ void ModQueue<T>::initFirst(u16 seq) {
 
 template <typename T>
 u32 ModQueue<T>::getWindow() {
+    return window;
+}
+
+template <typename T>
+u32 ModQueue<T>::getWindowSize() {
     return window - windowUsed;
 }
 

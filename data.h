@@ -53,12 +53,6 @@ struct FileHeader {
     u16 fileNameLength;
 };
 
-struct Seg {
-    DataSegment* seg;
-    char* data;
-    int dataSize;
-};
-
 DataSegment* createDataSegment(DataTypes type, bool isNextFrag=false, int buffer=0);
-Seg getSeg(int seq, DataTypes type, bool isNext, u32 wantedSize, u32 maxSize=UINT_MAX);
+DataSegment* getSeg(int seq, DataTypes type, bool isNext, u32 wantedSize, u32 maxSize=UINT_MAX);
 #endif

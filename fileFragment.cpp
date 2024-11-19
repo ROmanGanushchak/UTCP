@@ -38,28 +38,28 @@ FileFragmentator::~FileFragmentator() {
 DataSegment* FileFragmentator::getNextFragment(u16 dataSize) {
     u64 top = ftell(file);
     bool isFirst = top == 0 && headerTop == 0;
-    Seg seg;
+    DataSegment* seg;
     if (headerTop < header.size()) {
         seg = getSeg(0, isFirst ? DataTypes::File : DataTypes::PureData, true, header.size()-headerTop, dataSize);
-        if (seg.seg == NULL) return NULL;
-        memcpy(seg.data, header.data()+headerTop, seg.dataSize);
-        headerTop += seg.dataSize;
+        if (seg == NULL) return NULL;
+        memcpy(seg->getExtraData(), header.data()+headerTop, seg->dataLength);
+        headerTop += seg->dataLength;
     } else {
         seg = getSeg(0, isFirst ? DataTypes::File : DataTypes::PureData, true, dataSize);
-        if (seg.seg == NULL) {
-            printf("The memory for segment was not allocated\n");
-            return NULL;
-        }
-        size_t rad = fread(seg.data, 1, seg.dataSize, file);
+        if (seg == NULL) return NULL;
+        size_t rad = fread(seg->getExtraData(), 1, seg->dataLength, file);
         assert(rad <= dataSize && "More baits where rad from file then allowed");
-        fwrite(seg.data, 1, rad, copy);
+        fwrite(seg->getExtraData(), 1, rad, copy);
         char last = fgetc(file);
-        if (last == EOF)
-            seg.seg->isNextFragment = false;
-        else
+        if (last == EOF) {
+            u32 toDelete = seg->dataLength - rad;
+            seg = (DataSegment*)realloc(seg, seg->getFullLength()-toDelete);
+            seg->dataLength -= toDelete; 
+            seg->isNextFragment = false;
+        } else
             ungetc(last, file);
     }
-    return seg.seg;
+    return seg;
 }
 
 bool FileFragmentator::isFinished() {

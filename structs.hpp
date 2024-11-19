@@ -88,6 +88,7 @@ public:
     bool isFull() {return arr.size() == elemCount;}
     void setFirst(int _first) { first = _first; }
     u32 getWindow();
+    u32 getWindowSize();
     void setWindow(u32 size);
     inline bool isAddable(u16 size);
 };

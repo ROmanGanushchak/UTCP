@@ -114,16 +114,14 @@ void Connector::start() {
 
         if (!sent.getWindow() && now - lastSendedKeepAlive > 150)
             sendKeepAlive(now);
-        while (!toSend.isEmpty() && sent.getWindow()) {
+        while (!toSend.isEmpty()) { // && sent.getWindow()
             FragmentatorI* fr = toSend.front();
-            printf("Fragmentator: %p\n", fr);
-            while (sent.getWindow() - sizeof(DataSegment) > 0 && !fr->isFinished()) {
-                DataSegment* segment = fr->getNextFragment(_min(maxDataSize, sent.getWindow() - sizeof(DataSegment)));
+            while (sent.getWindowSize() - sizeof(DataSegment) > 0 && !fr->isFinished()) { // sent.getWindow() - sizeof(DataSegment) > 0 &&
+                DataSegment* segment = fr->getNextFragment(_min(maxDataSize, sent.getWindowSize() - sizeof(DataSegment))); // _min(maxDataSize, sent.getWindow() - sizeof(DataSegment))
                 if (segment == NULL) break;
-                printf("Sending seg %p ", segment);
-                printf("%d, %d\n", segment, segment->type, segment->dataLength);
-                printf("Data: %.*s\n!!END!!\n", segment->dataLength, segment->getExtraData());
-                if (segment == NULL) break;
+                // printf("Sending seg %p ", segment);
+                // printf("%d, %d\n", segment, segment->type, segment->dataLength);
+                // printf("Data: %.*s\n!!END!!\n", segment->dataLength, segment->getExtraData());
                 segment->seq = nextSeq;
                 dprintf("Adding element with seq: %d\n", segment->seq);
                 auto descriptor = sent.add((DataSegmentDescriptor){.segment=segment, .sentCount=0});
@@ -134,17 +132,14 @@ void Connector::start() {
                     timers.push_back((TimerUnit){.seq=segment->seq, .endTime=now + timeToMiss});
                     descriptor->timer = --timers.end();
                     sock.sendSegment(descriptor->segment);
-                    // sleep(0.2);
                 } else {
                     toSend.pushFront(new NoFragmentator(segment));
-                    // printf("Critical error, the element was not added\nTrying to add seq: %d\n", segment->seq);
                     break;
                 }
             }
             if (fr && fr->isFinished()) {
                 delete fr;
                 toSend.pop();
-                fr = nullptr;
             } else break;
         }
         Sleep(1);
