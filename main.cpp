@@ -32,44 +32,62 @@ int main() {
     ReceiveQueue<FragmentatorI*>& toSend = process1.getToSendQueue();
 
     printf("\nWrite the command to be executed\n");
-    string bufferStr;
-    char buffer[1024];
-    char ipBuffer[20];
-    u16 _port;
-    u16 maxFragmentSize;
-    u16 ips[4];
-    char bufferFileName[1024];
+    string input;
+    string command;
+    string params;
     std::cin.ignore();
     while (true) {
-        std::getline(std::cin, bufferStr);
-        strcpy(buffer, bufferStr.c_str());
-        if (buffer[0] == '\0') continue;
-        if (!strcmp("exit", buffer))
-            break;
-        if (sscanf(buffer, "connect %d.%d.%d.%d %d", &ips[0], &ips[1], &ips[2], &ips[3], &_port) == 5) {
-            sprintf(ipBuffer, "%d.%d.%d.%d", ips[0], ips[1], ips[2], ips[3]);
-            string _ip = ipBuffer;
-            process1.connect(_ip, _port);
-            continue;
+        std::getline(std::cin, input);
+        u64 separator = input.find(' ');
+        if (separator != std::string::npos) {
+            command = input.substr(0, separator);
+            params = input.substr(separator+1);
+        } else {
+            command = input;
+            params = "";
         }
-        if (sscanf(buffer, "SetFragSize %u", &maxFragmentSize) == 1) {
+        // printf("Input: %s, Command: %s, Params: %s\n", input.c_str(), command.c_str(), params.c_str());
+
+        if (command == "file") {
+            FILE* file = fopen(params.c_str(), "rb");
+            if (file == NULL) {
+                printf("Failed to open the file.\n");
+                continue;
+            }
+            fseek(file, 0, SEEK_END);
+            printf("Len: %llu\n", ftell(file));
+            fseek(file, 0, SEEK_SET);
+            size_t pos = params.rfind('/');
+            if (pos == std::string::npos) pos = -1;
+            string name = params.substr(pos+1);
+            toSend.push(new FileFragmentator(file, name));
+        } else if (command == "connect") {
+            char ip[32];
+            u16 port;
+            if (sscanf(params.c_str(), "%s %d", ip, &port) != 2) {
+                printf("Invalid parans\n");
+                continue;
+            }
+            process1.connect(ip, port);
+        } else if (command == "exit") {
+            break;
+        } else if (command == "SetFragSize") {
+            u32 maxFragmentSize;
+            if (sscanf(params.c_str(), "%u", &maxFragmentSize) != 1) {
+                printf("Invalid params\n");
+                continue;
+            }
             auto [isError, errorPrint] = process1.setMaxFragmentSize(maxFragmentSize);
             if (isError) printf("Error: %s\n", errorPrint.c_str());
-            continue;   
-        }
-        if (strcmp(buffer, "quit") == 0) {
+        } else if (command == "quit") {
             process1.quit();
-            continue;
+        } else if (command == "savePlace") {
+            FileDefragmentator::toSave = params;
+        } else {
+            DataSegment* segment = createDataSegment(DataTypes::String, false, input.size());
+            memcpy((char*)segment->getExtraData(), input.c_str(), input.size());
+            toSend.push(new Fragmentator(reinterpret_cast<char*>(segment), segment->getFullLength(), DataTypes::String, true));
         }
-        if (sscanf(buffer, "file %s", bufferFileName)) {
-            toSend.add(new FileFragmentator(bufferFileName));
-            continue;
-        }
-        u16 len = strlen(buffer);
-        DataSegment* segment = createDataSegment(DataTypes::String, false, len);
-        memcpy((char*)segment->getExtraData(), buffer, len);
-        Fragmentator *f = new Fragmentator(reinterpret_cast<char*>(segment), segment->getFullLength(), DataTypes::String, true);
-        toSend.add(f);
     }
     return 0;
 }

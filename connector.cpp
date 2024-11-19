@@ -3,6 +3,7 @@
 #include <cassert>
 #include <queue>
 #include <iostream>
+#include "windows.h"
 #include "crc.h"
 #include "connector.h"
 #include "types.h"
@@ -50,17 +51,19 @@ void Connector::start() {
         while (!queue.isEmpty()) {
             DataSegment* segment = queue.front();
             queue.pop();
+            sent.setWindow(segment->window);
             dprintf("Fragment received: type: %d, seq: %d\n", segment->type, segment->seq);
             if (sysMessageHandler(segment, now)) {
                 free(segment);
                 continue;
             }
-            sendAck(segment->seq);
 
-            auto fragments = received.add(segment);
+            auto [isAdded, fragments] = received.add(segment);
+            if (!isAdded) break;
+            sendAck(segment->seq);
             dprintf("Added fragments %d, received fragments:\n", segment->seq);
             for (auto fragment : fragments) {
-                dprintf("Fragment from received: %d\n", fragment->seq);
+                printf("Fragment from received: %d\n", fragment->seq);
                 if (fragment->type != DataTypes::PureData && !fragment->isNextFragment && fragment->type != DataTypes::File) {
                     packets.push_back(fragment);
                     continue;
@@ -101,42 +104,46 @@ void Connector::start() {
         //             isKeepAliveWarning = false;
         //         }
         //     }
-        //     if (now - lastReception > 5000 && now - lastSendedKeepAlive > 5000) {
-        //         DataSegment keep = (DataSegment){.dataLength=0, .seq=0, .type=DataTypes::KeepAlive, .isNextFragment=false};
-        //         initCrc(&keep);
-        //         sock.sendSegment(&keep);
-        //         lastSendedKeepAlive = now;
-        //     }
+        //     if (now - lastReception > 5000 && now - lastSendedKeepAlive > 5000) 
+        //         sendKeepAlive(now);
         //     if (!isKeepAliveWarning && now - lastReception > 50000) {
         //         printf("The other side doesnt correspond to sended messages\nIf u with to quit the connection write 'quit' command\n");
         //         isKeepAliveWarning = true;
         //     }
         // }
 
-        while (!toSend.isEmpty()) {
+        if (!sent.getWindow() && now - lastSendedKeepAlive > 150)
+            sendKeepAlive(now);
+        while (!toSend.isEmpty() && sent.getWindow()) {
             FragmentatorI* fr = toSend.front();
             dprintf("Received frame %hu\n", fr->fragmentSize);
             dprintf("Size: %d IsActivated: %d\n", fr->fragmentSize, fr->isActivated());
 
-            while (!fr->isFinished()) {
-                DataSegment* segment = fr->getNextFragment(nextSeq++, maxDataSize);
+            while (sent.getWindow() - sizeof(DataSegment) > 0 && !fr->isFinished()) {
+                DataSegment* segment = fr->getNextFragment(_min(maxDataSize, sent.getWindow() - sizeof(DataSegment)));
+                if (segment == NULL) break;
+                segment->seq = nextSeq;
                 dprintf("Adding element with seq: %d\n", segment->seq);
-                timers.push_back((TimerUnit){.seq=segment->seq, .endTime=now + timeToMiss});
-
-                bool wasAdded = sent.add((DataSegmentDescriptor){.segment=segment, .timer=--timers.end(), .sentCount=0});
-                if (!wasAdded) {
-                    // toSend.add(segment);
+                auto descriptor = sent.add((DataSegmentDescriptor){.segment=segment, .sentCount=0});
+                if (descriptor) {
+                    nextSeq++;
+                    descriptor->segment->window = received.getWindow();
+                    initCrc(descriptor->segment);
+                    timers.push_back((TimerUnit){.seq=segment->seq, .endTime=now + timeToMiss});
+                    descriptor->timer = --timers.end();
+                    sock.sendSegment(descriptor->segment);
+                    Sleep(200);
+                    // sleep(0.2);
+                } else {
+                    toSend.pushFront(new NoFragmentator(segment));
                     printf("Critical error, the element was not added\nTrying to add seq: %d\n", segment->seq);
                     break;
                 }
-                sock.sendSegment(segment);
             }
-            if (fr->isFinished()) {
-                printf("The fr was cleared\n");
+            if (fr && fr->isFinished()) {
                 delete fr;
                 toSend.pop();
-            }
-            else break;
+            } else break;
         }
     }
 }
@@ -145,7 +152,6 @@ bool Connector::sysMessageHandler(DataSegment* seg, u64 now) {
     switch(seg->type) {
     case DataTypes::ACK: {
         auto [elem, status] = sent.get(seg->seq);
-        dprintf("Received ACK, status: %d, isSucess: %d\n", status, status == ReturnCodes::Success);
         if (status == ReturnCodes::Success) {
             timers.erase(elem->timer);
             sent.markAsProcessed(seg->seq, true);
@@ -205,13 +211,22 @@ void Connector::sendConnectionMessage(string ip, u16 port, DataTypes type, bool 
     *seg = {.dataLength=0, .seq=0, .type=type, .isNextFragment=false};
     initCrc(seg);
     printf("Connection message seq: %d\n", seg->seq);
-    toSend.add(new Fragmentator(reinterpret_cast<char*>(seg), (u16)seg->getFullLength(), type, true));
+    toSend.push(new Fragmentator(reinterpret_cast<char*>(seg), (u16)seg->getFullLength(), type, true));
 }
 
 void Connector::sendAck(u16 seq) {
     DataSegment seg = (DataSegment){.dataLength=0, .seq=seq, .type=DataTypes::ACK, .isNextFragment=false};
+    seg.window = received.getWindow();
     initCrc(&seg);
     sock.sendSegment(&seg);
+}
+
+void Connector::sendKeepAlive(u64 now) {
+    DataSegment keep = (DataSegment){.dataLength=0, .seq=0, .type=DataTypes::KeepAlive, .isNextFragment=false};
+    keep.window = received.getWindow();
+    initCrc(&keep);
+    sock.sendSegment(&keep);
+    lastSendedKeepAlive = now;
 }
 
 void Connector::sendAck(u16 seq, string ip, u16 port) {
@@ -229,13 +244,8 @@ void Connector::connect(string ip, u16 port) {
 }
 
 void Connector::finish() {
+    this->quit(true);
     this->isWorking = false;
-}
-
-void Connector::endConncetion() {
-    DataSegment* segment = (DataSegment*)malloc (sizeof(DataSegment*));
-    Fragmentator *f = new Fragmentator(reinterpret_cast<char*>(segment), segment->getFullLength(), DataTypes::EndConnection, true);
-    toSend.add(f);
 }
 
 pair<bool, string> Connector::setMaxFragmentSize(u16 size) {

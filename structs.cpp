@@ -9,22 +9,29 @@
 using namespace std;
 
 template <typename T>
-ModQueue<T>::ModQueue(int initCapacity, int firstIndex) 
-    : first(firstIndex), elemCount(0), arr(initCapacity), states(initCapacity, States::Empty) {}
+ModQueue<T>::ModQueue(int initCapacity, u32 window, int firstIndex) 
+    : first(firstIndex), elemCount(0), arr(initCapacity), states(initCapacity, States::Empty),
+    window(window), windowUsed(0) {}
 
 template <typename T>
 void ModQueue<T>::resize(int newSize) {
-    if (states[first] == States::Empty) {
+    if (states[first%arr.size()] == States::Empty) {
         arr.resize(newSize);
         return;
     }
     vector<T> newArr(newSize);
     vector<char> newStates(newSize, States::Empty);
     for (int i=0; i<arr.size(); i++) {
-        if (states[i] == States::Empty) continue;
-        int index = getAck(arr[i]) % newArr.size();
-        if (states[index] != States::Empty) 
+        if (states[i] != States::Active) continue;
+        int index = getAck(arr[i]) % newSize;
+        if (newStates[index] != States::Empty) {
+            for (int j=0; j<arr.size(); j++) {
+                if (states[j] == States::Active)
+                    printf("Seq: %d\n", getAck(arr[j]));   
+            }
+            printf("Broke on seq: %d, size: %d, newSize: %d\n", getAck(arr[i]), arr.size(), newSize);
             throw std::length_error("The new container size is not big enough for all elements from prev conteiner in ModQueue");
+        }
         newStates[index] = states[i];
         newArr[index] = arr[i];
     }
@@ -41,9 +48,8 @@ int ModQueue<T>::getIndex(int seq) {
 
 template <typename T>
 pair<T*, ReturnCodes> ModQueue<T>::get(int seq) {
-    if (seq < first || seq > first + arr.size())
-        return {NULL, ReturnCodes::ACKWasAlreadyProceed};
-    if (states[seq % arr.size()] != States::Active)    
+    // printf("Arr size: %d, seq: %d, first: %d\n", arr.size(), seq, first);
+    if (seq < first || seq >= first + arr.size() || states[seq % arr.size()] != States::Active)
         return {NULL, ReturnCodes::ACKWasAlreadyProceed};
     return {&arr[seq % arr.size()], ReturnCodes::Success};
 }
@@ -56,16 +62,24 @@ void ModQueue<T>::updateFirstValue() {
 }
 
 template <typename T>
-bool ModQueue<T>::add(T elem) {
-    int index = getIndex(getAck(elem));
-#if DEBUG_PRINT
-    printf("Added at ModQueue at index: %d, for seq: %d\n", index, getAck(elem));
-#endif
-    if (index < first || states[index] != States::Empty)
+bool ModQueue<T>::add(T elem, u32 size) {
+    int seq = getAck(elem);
+    int index = getIndex(seq);
+    if (windowUsed + size > window || seq < first || seq > first + 2*arr.size()) {// states[index] != States::Empty
+        printf("Not added, seq: %d, size: %d, windwo: %d, index: %d, first: %d, arrSize: %d\n", seq, windowUsed+size, window, index, first, arr.size());
         return false;
+    }
+    if (states[index] != States::Empty) {
+        if (seq < first + arr.size()) return false;
+        printf("Resized called, old size: %d, first: %d, newSeq: %d\n", arr.size(), first, seq);
+        resize(arr.size() * 3);
+        index = getIndex(seq);
+        printf("Resize called, new index: %d\n", index);
+    }
     arr[index] = elem;
     states[index] = States::Active;
     elemCount++;
+    windowUsed += size;
     return true;
 }
 
@@ -77,11 +91,8 @@ int ModQueue<T>::del(int seq) {
 #if DEBUG_PRINT
     printf("Del at index: %d, first: %d, with seq: %d\n", index, first, seq);
 #endif
-    if (first == seq) {
-        states[index] = States::Deleted;
-        updateFirstValue();
-    } else 
-        states[index] = States::Deleted;
+    states[index] = States::Deleted;
+    if (first == seq) updateFirstValue();
     return index;
 }
 
@@ -107,9 +118,23 @@ void ModQueue<T>::initFirst(u16 seq) {
     first = seq;
 }
 
+template <typename T>
+u32 ModQueue<T>::getWindow() {
+    return window - windowUsed;
+}
+
+template <typename T>
+void ModQueue<T>::setWindow(u32 size) {
+    this->window = window;
+}
+
+template <typename T>
+bool ModQueue<T>::isAddable(u16 size) {
+    return window - windowUsed >= size;
+}
 
 
-SentMessagesQueue::SentMessagesQueue(int initCapacity) : ModQueue(initCapacity) {}
+SentMessagesQueue::SentMessagesQueue(int initCapacity, u32 window) : ModQueue(initCapacity, window) {}
 SentMessagesQueue::~SentMessagesQueue() {
     for (int i=0; i<arr.size(); i++) {
         if (states[i] == States::Active) 
@@ -120,12 +145,15 @@ SentMessagesQueue::~SentMessagesQueue() {
 void SentMessagesQueue::markAsProcessed(int seq, bool toFree) {
     int index = del(seq);
     dprintf("Marked as proceed %d\n", seq);
+    windowUsed -= arr[index].segment->getFullLength() * (index >= 0);
     if (index >= 0 && toFree)
-        free(arr[index].segment);
+        free(arr[index].segment); 
 }
 
-bool SentMessagesQueue::add(DataSegmentDescriptor segment) {
-    return ModQueue<DataSegmentDescriptor>::add(segment);
+DataSegmentDescriptor* SentMessagesQueue::add(DataSegmentDescriptor segment) {
+    if (ModQueue<DataSegmentDescriptor>::add(segment, segment.segment->getFullLength())) 
+        return &arr[getIndex(segment.segment->seq)];
+    return NULL;
 }
 
 int SentMessagesQueue::getAck(DataSegmentDescriptor elem) {
@@ -133,8 +161,8 @@ int SentMessagesQueue::getAck(DataSegmentDescriptor elem) {
 }
 
 
-ReceivedMessagesQueue::ReceivedMessagesQueue (int initCapacity)
-    : ModQueue(initCapacity) {}
+ReceivedMessagesQueue::ReceivedMessagesQueue (int initCapacity, u32 window)
+    : ModQueue(initCapacity, window) {}
 
 int ReceivedMessagesQueue::getAck(DataSegment* elem) {
     return elem->seq;
@@ -146,16 +174,19 @@ ReceivedMessagesQueue::~ReceivedMessagesQueue() {
             free(arr[i]);
 }
 
-vector<DataSegment*> ReceivedMessagesQueue::add(DataSegment *elem) {
-    if (!ModQueue<DataSegment*>::add(elem)) 
-        return {};
-    int index = elem->seq % arr.size();
-    if (index != first) return {};
+pair<bool, vector<DataSegment*>> ReceivedMessagesQueue::add(DataSegment *elem) {
+    printf("Sending seq: %d, size: %d, first: %d\n", elem->seq, arr.size(), first);
+    if (!ModQueue<DataSegment*>::add(elem, elem->getFullLength())) 
+        return {false, {}};
+    if (elem->seq != first) return {true, {}};
     int n = arr.size();
     vector<DataSegment*> rez;
-    for (; states[first%n] == States::Active; first++) {
-        rez.push_back(arr[first%n]);
+    for (; states[first%n] != States::Empty; first++) {
+        if (states[first%n] == States::Active) {
+            rez.push_back(arr[first%n]);
+            windowUsed -= arr[first%n]->getFullLength();
+        }
         states[first%n] = States::Empty;
     }
-    return rez;
+    return {true, rez};
 }

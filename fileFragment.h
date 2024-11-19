@@ -10,13 +10,13 @@
 class FileFragmentator : public FragmentatorI {
 private:
     FILE *file;
-    u16 fileSize;
+    u64 fileSize;
     std::string header;
     u16 headerTop;
 public:
-    FileFragmentator(std::string filePath);
+    FileFragmentator(FILE* file, std::string name);
     ~FileFragmentator();
-    DataSegment* getNextFragment(u16 seq, u16 maxSize) override;
+    DataSegment* getNextFragment(u16 maxSize) override;
     bool isFinished() override;
 };
 
@@ -33,7 +33,5 @@ public:
     ~FileDefragmentator();
     std::pair<bool, DataSegment*> addNextFrag(DataSegment* data);
 };
-
-// std::pair<char*, u16> readToBuffer(char* buffer, u16 size, char* source, u16 sourceSize);
 
 #endif

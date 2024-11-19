@@ -6,7 +6,7 @@
 
 class FragmentatorI {
 public:
-    virtual DataSegment* getNextFragment(u16 seq, u16 maxSize) = 0;
+    virtual DataSegment* getNextFragment(u16 maxSize) = 0;
     virtual bool isFinished() = 0;
     virtual ~FragmentatorI() = default;
 };
@@ -21,7 +21,17 @@ private:
 public:
     Fragmentator(char* data, u32 size, DataTypes type, bool isHeader=false);
     ~Fragmentator();
-    DataSegment* getNextFragment(u16 seq, u16 maxSize) override;
+    DataSegment* getNextFragment(u16 maxSize) override;
+    bool isFinished() override;
+};
+
+class NoFragmentator : public FragmentatorI {
+private:
+    DataSegment* seg;
+public:
+    NoFragmentator(DataSegment *seg);
+    ~NoFragmentator();
+    DataSegment* getNextFragment(u16 maxSize) override;
     bool isFinished() override;
 };
 

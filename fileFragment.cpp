@@ -4,24 +4,22 @@
 #include "data.h"
 using namespace std;
 
+u32 getRemainingBaits(FILE* file) {
+    long currentPos = ftell(file);
+    fseek(file, 0, SEEK_END);
+    long endPos = ftell(file);
+    fseek(file, currentPos, SEEK_SET);
+    return endPos - currentPos;
+}
+
 string FileDefragmentator::toSave = "D:/University/PKS/Protociol2/files";
 
-FileFragmentator::FileFragmentator(string filePath) {
-    printf("%s", filePath.c_str());
-    cout << filePath << endl;
-    file = fopen(filePath.c_str(), "rb");
-    if (file == NULL) {
-        printf("Failed to open the file.\n");
-        return;
-    }
+FileFragmentator::FileFragmentator(FILE* file, string name) : file(file) {
     fseek(file, 0, SEEK_END);
     fileSize = ftell(file);
     fseek(file, 0, SEEK_SET);
     headerTop = 0;
 
-    size_t pos = filePath.rfind('/');
-    if (pos == std::string::npos) pos = -1;
-    string name = filePath.substr(pos+1);
     u16 size = name.size();
     header.assign(name.size()+2, '0');
     memcpy(header.data(), (char*)&size, sizeof(size));
@@ -33,37 +31,37 @@ FileFragmentator::~FileFragmentator() {
         fclose(file);
 }
 
-DataSegment* FileFragmentator::getNextFragment(u16 seq, u16 dataSize) {
-    int top = ftell(file);
+DataSegment* FileFragmentator::getNextFragment(u16 dataSize) {
+    u64 top = ftell(file);
     bool isFirst = top == 0 && headerTop == 0;
     Seg seg;
-    printf("Header size: %d, top: %d\n", header.size(), headerTop);
     if (headerTop < header.size()) {
-        seg = getSeg(seq, isFirst ? DataTypes::File : DataTypes::PureData, 
+        seg = getSeg(0, isFirst ? DataTypes::File : DataTypes::PureData, 
             true, header.size()-headerTop, dataSize);
+        if (seg.seg == NULL) return NULL;
         memcpy(seg.data, header.data()+headerTop, seg.dataSize);
         headerTop += seg.dataSize;
     } else {
-        seg = getSeg(seq, isFirst ? DataTypes::File : DataTypes::PureData, false, fileSize-top, dataSize);
+        seg = getSeg(0, isFirst ? DataTypes::File : DataTypes::PureData, false, fileSize-top, dataSize);
+        if (seg.seg == NULL) return NULL;
+        printf("Allowed space: %d, allocated space: %d\n", dataSize, seg.dataSize);
         size_t bytesRead = fread(seg.data, 1, seg.dataSize, file);
         seg.seg->isNextFragment = ftell(file) != fileSize;
     }
-    initCrc(seg.seg);
-    printf("For seq: %d, is next: %d, %d, %d\n", seg.seg->seq, seg.seg->isNextFragment);
-    printf("First bait: %hhu, second: %hhu\n", ((char*)seg.seg->getExtraData())[0], ((char*)seg.seg->getExtraData())[1]);
-    printf("Header: %hhu, %hhu\n", header[0], header[1]);
+    // printf("SENDING %d: %.*s\n", seg.seg->seq, seg.seg->dataLength, (char*)seg.seg->getExtraData());
+    if (!seg.seg->isNextFragment) printf("It is last fragment");
     return seg.seg;
 }
 
 bool FileFragmentator::isFinished() {
-    printf("On finish check -> %d %d\n", ftell(file), fileSize);
+    printf("On finish check -> %llu %llu, remainingBaits: %d, isFinished: %d\n", ftell(file), fileSize, getRemainingBaits(file),  feof(file));
     return ftell(file) == fileSize;
 }
 
 
 FileDefragmentator::FileDefragmentator() : file(NULL), bufferTop(0) {
-    buffer = (char*) malloc (sizeof(FileHeader));
     bufferCap = sizeof(FileHeader);
+    buffer = (char*) malloc (bufferCap);
 }
 FileDefragmentator::~FileDefragmentator() {
     free(buffer);
@@ -77,18 +75,17 @@ FileDefragmentator::~FileDefragmentator() {
 }
 
 pair<bool, DataSegment*> FileDefragmentator::addNextFrag(DataSegment* seg) {
+    // printf("DataReceived %d: %.*s\n!!!END!!!\n", seg->seq, seg->dataLength, (char*)seg->getExtraData());
     char *data = (char*) seg->getExtraData();
     u16 size = seg->dataLength;
-    printf("buffer: %d %d\n", bufferTop, bufferCap);
+    printf("Buffer Data: %d %d\n", bufferTop, bufferCap);
     while (bufferTop != bufferCap) {
-        u16 _size = _min(size, bufferCap-bufferTop);
+        u64 _size = _min(size, bufferCap-bufferTop);
         memcpy(buffer+bufferTop, data, _size);
         bufferTop += _size;
-        printf("buffer1: %d %d\n", bufferTop, bufferCap);
         if (bufferTop == bufferCap) {
-            printf("Level up\n");
             u16 nameSize = ((FileHeader*)buffer)->fileNameLength;
-            printf("nameSize: %hu\n", nameSize);
+            printf("Name size: %d, buffer cap: %d\n", nameSize, bufferCap);
             if (bufferCap == sizeof(FileHeader)) {
                 bufferCap += nameSize;
                 buffer = (char*) realloc(buffer, bufferCap);
@@ -96,18 +93,21 @@ pair<bool, DataSegment*> FileDefragmentator::addNextFrag(DataSegment* seg) {
                 string fileName(buffer + sizeof(FileHeader), nameSize);
                 filePath = FileDefragmentator::toSave + '/' + fileName;
                 file = fopen(filePath.c_str(), "wb");
+                if (file == NULL) 
+                    printf("File was not opened\n");
                 printf("openning file in: %s\n", filePath.c_str());
             }
             data = data + _size;
             size -= _size;
         } else break;
     }
-    if (file) fwrite(data, sizeof(char), size, file);
+    printf("FILE: %p\n", file);
+    if (file) {fwrite(data, sizeof(char), size, file); fflush(file);}
     if (!seg->isNextFragment) {
         file = NULL;
         printf("The file saved: %s\n", filePath.c_str());
         return {true, NULL};
     }
-    printf("Received fragment of file %hu\n", seg->seq);
+    // printf("Received fragment of file %hu\n", seg->seq);
     return {false, NULL};
 }

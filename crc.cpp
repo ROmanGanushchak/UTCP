@@ -15,8 +15,8 @@ u16 getCrc(char* data, int size) {
     return crc;
 }
 
-bool checkCrc(u16 crc, char *data, int size) {
-    return crc == getCrc(data, size);
+bool checkCrc(DataSegment *seg) {
+    return seg->crc == getCrc(((char*)seg)+4, seg->dataLength + sizeof(DataSegment) - 4);
 }
 
 void initCrc(DataSegment* seg) {

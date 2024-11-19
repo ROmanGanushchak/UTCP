@@ -35,8 +35,8 @@ public:
     void start();
     void finish();
     void connect(std::string ip, u16 port);
-    void endConncetion();
     std::pair<bool, std::string> setMaxFragmentSize(u16 size);
+    void sendKeepAlive(u64 now);
     void sendAck(u16 seq);
     void sendAck(u16 seq, std::string ip, u16 port);
     void quit(bool conf=true);

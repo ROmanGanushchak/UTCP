@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <iostream>
 #include "socket.h"
+#include "crc.h"
 using namespace std;
 
 pair<string, u16> getAddrData(sockaddr_in* addr) {
@@ -58,17 +59,18 @@ void Socket::reading() {
     int clientAddrLen = sizeof(_senderAddr);
     while (isListening) {
         auto [ip, port] = getListeningData();
-        printf("Listening on %s, %d\n", ip.c_str(), port);
+        // printf("Listening on %s, %d\n", ip.c_str(), port);
         int recvSize = recvfrom(sock, buffer, sizeof(buffer), 0, (struct sockaddr*)&_senderAddr, &clientAddrLen);
         if (recvSize == SOCKET_ERROR) {
             std::cerr << "Recvfrom failed!" << std::endl;
             continue;
         }
         DataSegment *tempSegment = reinterpret_cast<DataSegment*>(buffer);
-        if (sizeof(DataSegment) + tempSegment->dataLength != recvSize) {
-            printf("The received fragment doesnt have enough size or was damaged");
+        if (!checkCrc(tempSegment) || tempSegment->getFullLength() != recvSize) {
+            printf("The received was damaged or has incorrect size\n");
             continue;
         }
+        printf("Received the segment seq: %d, type: %d, dataSize: %d\n", tempSegment->seq, tempSegment->type, tempSegment->dataLength);
         if (tempSegment->type == DataTypes::Connection || tempSegment->type == DataTypes::ConnectionApproval) {
             char senderIP[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &(_senderAddr.sin_addr), senderIP, INET_ADDRSTRLEN);
@@ -81,7 +83,7 @@ void Socket::reading() {
         memcpy(segment, tempSegment, sizeof(DataSegment));
         memcpy(segment->getExtraData(), buffer+sizeof(DataSegment), tempSegment->dataLength);
         dprintf("Received segment with seq: %hu, type: %d\n", segment->seq, segment->type);
-        this->queue.add(segment);
+        this->queue.push(segment);
     }
 }
 
@@ -120,8 +122,8 @@ int Socket::sendSegment(DataSegment *segment) {
         printf("Trying to send message without initialization of sender data\n");
         return -1;
     }
-    printf("Sending message with seq: %d, type: %d size: %d with ", segment->seq, segment->type, segment->dataLength);
-    printAddr(&senderAddr);
+    // printf("Sending message with seq: %d, type: %d size: %d with\n", segment->seq, segment->type, segment->dataLength);
+    // printAddr(&senderAddr);
 
     std::lock_guard<std::mutex> lock(sendingMutex);
     int sentSize = sendto(sock, reinterpret_cast<char*>(segment), segment->getFullLength(), 0, (struct sockaddr*)&senderAddr, sizeof(senderAddr));

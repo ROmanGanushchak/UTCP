@@ -21,7 +21,7 @@ Fragmentator::~Fragmentator() {
     }
 }
 
-DataSegment* Fragmentator::getNextFragment(u16 seq, u16 maxSize) {
+DataSegment* Fragmentator::getNextFragment(u16 maxSize) {
     DataSegment* seg; u16 size; bool isFirst = top == 0;
     if (isFirst && isHeader && maxSize+sizeof(DataSegment) >= this->size) {
         size = this->size - sizeof(DataSegment);
@@ -34,11 +34,9 @@ DataSegment* Fragmentator::getNextFragment(u16 seq, u16 maxSize) {
         seg = createDataSegment(type, top+size == this->size, size);
         memcpy((char*)seg->getExtraData(), data+top, size);
     }
-    seg->seq = seq;
     seg->dataLength = size;
     seg->type = isFirst ? type : DataTypes::PureData;
     seg->isNextFragment = top + size != this->size;
-    initCrc(seg);
     top += size;
     return seg;
 }
@@ -82,6 +80,20 @@ DataSegment* Defragmentator::get() {
     return reinterpret_cast<DataSegment*>(data);
 }
 
-Seg fragment(char* data, u16 size, u16 maxSize, u16 seq, bool isNext, DataTypes type) {
 
+NoFragmentator::NoFragmentator(DataSegment* seg) {
+    this->seg = seg;
+}
+NoFragmentator::~NoFragmentator() {
+    if (seg) free(seg);
+}
+
+DataSegment* NoFragmentator::getNextFragment(u16 size) {
+    auto temp = seg;
+    seg = NULL;
+    return seg;
+}
+
+bool NoFragmentator::isFinished() {
+    return seg == NULL;
 }

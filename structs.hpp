@@ -2,7 +2,7 @@
 #define RECEIVED_QUEUE_H
 
 #include <stdexcept>
-#include <queue>
+#include <deque>
 #include <mutex>
 #include <list>
 #include <optional>
@@ -13,7 +13,7 @@
 template <typename T>
 class ReceiveQueue {
 private:
-    std::queue<T> segments;
+    std::deque<T> segments;
     std::mutex mtx;
     char deconstructType;
 public:
@@ -31,18 +31,21 @@ public:
                 free(elem);
             else if (deconstructType == 2)
                 delete elem;
-            segments.pop();
+            segments.pop_back();
         }
     }
-    void add(T segment) {
+    void push(T segment) {
         std::lock_guard<std::mutex> lock(mtx);
-        segments.push(std::move(segment));
+        segments.push_back(segment);
+    }
+    void pushFront(T segment) {
+        std::lock_guard<std::mutex> lock(mtx);
+        segments.push_front(segment);
     }
     void pop() {
         std::lock_guard<std::mutex> lock(mtx);
-        segments.pop();
+        segments.pop_front();
         dprintf("Pop was called\n");
-        return;
     }
     T front() {return segments.front();}
 };
@@ -65,15 +68,17 @@ protected:
     int elemCount;
     std::vector<T> arr;
     std::vector<char> states;
+    u32 window;
+    u32 windowUsed;
 
     inline int getIndex(int seq);
     virtual int getAck(T elem) = 0;
-    bool add(T elem);
+    bool add(T elem, u32 size);
     // returns index of deleted or -1 if nothing was deleted
     int del(int seq);
     void updateFirstValue();
 public:
-    ModQueue(int initCapacity=64, int firstIndex=0);
+    ModQueue(int initCapacity=4, u32 window=65000, int firstIndex=0);
     void resize(int newSize);
     std::vector<T> iniq(u16 seq);
     void initFirst(u16 seq);
@@ -82,6 +87,9 @@ public:
     bool empty() {return elemCount != 0;}
     bool isFull() {return arr.size() == elemCount;}
     void setFirst(int _first) { first = _first; }
+    u32 getWindow();
+    void setWindow(u32 size);
+    inline bool isAddable(u16 size);
 };
 
 
@@ -91,7 +99,7 @@ protected:
         return elem;
     };
 public:
-    TestModQueue(int initCapacity=64) : ModQueue(initCapacity) {};
+    TestModQueue(int initCapacity=4) : ModQueue(initCapacity, 5000) {};
 };
 
 
@@ -99,9 +107,9 @@ class SentMessagesQueue : public ModQueue<DataSegmentDescriptor> {
 protected:
     int getAck(DataSegmentDescriptor elem) override;
 public:
-    SentMessagesQueue(int initCapacity=128);
+    SentMessagesQueue(int initCapacity=4, u32 window=5000);
     ~SentMessagesQueue();
-    bool add(DataSegmentDescriptor segment);
+    DataSegmentDescriptor* add(DataSegmentDescriptor segment);
     void markAsProcessed(int seq, bool free=false);
 };
 
@@ -110,9 +118,9 @@ class ReceivedMessagesQueue : public ModQueue<DataSegment*> {
 protected:
     int getAck(DataSegment* elem) override;
 public:
-    ReceivedMessagesQueue(int initCapacity=128);
+    ReceivedMessagesQueue(int initCapacity=16, u32 window=5000);
     ~ReceivedMessagesQueue();
-    std::vector<DataSegment*> add(DataSegment *elem);
+    std::pair<bool, std::vector<DataSegment*>> add(DataSegment *elem);
 };
 
 

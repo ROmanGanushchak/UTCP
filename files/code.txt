@@ -1,0 +1,78 @@
+<body id="body" class="english">
+
+
+
+<!--noindex-->
+<!--bannertop-->
+<script type="text/javascript">
+function doBranding(br) {
+		if( $(window).width() < 961 && $(window).width() > 100 ){
+			document.getElementById('main-content').style.width="100%";
+			document.getElementById('main-content').style.position="relative";
+			document.getElementById('header').style.width=$(window).width()+"px";
+			document.getElementById('header').style.position="sticky";
+			document.getElementById('footer').style.width=$(window).width()+"px";
+			document.getElementById('footer').style.position="sticky";
+		}
+		if(br){
+			document.body.style.backgroundPosition = '50% 0%';
+			document.body.style.backgroundRepeat= 'no-repeat';
+
+			if(br.iu)document.body.style.backgroundImage = 'url('+br.iu+')';   //  br.iu - ссылка на картинку
+			if(br.bg_color)document.body.style.backgroundColor = br.bg_color;    // Цвет фона
+			if(br.top_margin)document.body.style.paddingTop = br.top_margin;    // Расстояние сверху до контента сайта
+			if(br.top_position)document.body.style.backgroundAttachment = br.top_position;
+
+			if(br.cu){
+				document.body.style.cursor="pointer";
+				document.body.setAttribute("onclick", "onlyBodyClick(event||window.event)");
+				window.onlyBodyClick = function (e){
+					var t = e.target||e.srcElement;
+					if (t == document.body){ window.open(br.cu,'_blank'); }
+				};
+				document.addEventListener('touchstart', function(event) {
+					var touch = event.touches[0];
+					var t = event.target||event.srcElement;
+					if(t == document.body) window.open(br.cu,'_blank');
+				}, false);
+			}
+
+			if(document.getElementById('main-content') && $(window).width() > 960){
+				document.getElementById('main-content').style.width="100%";
+				document.getElementById('main-content').style.left="50%";
+				document.getElementById('main-content').style.marginLeft="-490px";
+				document.getElementById('main-content').style.position="relative";
+				document.getElementById('main-content').style.cursor="default";
+				document.getElementById('main-content').style.backgroundColor="white";
+			}
+			if(document.getElementById('header') && $(window).width() > 960){
+				document.getElementById('header').style.width="980px";
+				document.getElementById('header').style.backgroundColor="white";
+				document.getElementById('header').style.cursor="default";
+				document.getElementById('header').style.position="sticky";
+			}
+			if(document.getElementById('footer') && $(window).width() > 960){
+				document.getElementById('footer').style.width="980px";
+				document.getElementById('footer').style.cursor="default";
+				document.getElementById('footer').style.backgroundColor="white";
+				document.getElementById('footer').style.left="50%";
+				document.getElementById('footer').style.position="sticky";
+				//document.getElementById('footer').style.marginLeft="452px";
+			}
+			if(document.getElementById('body')){
+				document.getElementById('body').style.backgroundColor='white';
+			}
+      }
+  }
+</script>
+<div id="admixer_8a539a0829134fd9807e076bdffb13e4_zone_3405_sect_226_site_226" style="margin: 0px auto; position: relative;"><div dir="ltr" class="resize-sensor" style="pointer-events: none; position: absolute; inset: 0px; overflow: hidden; z-index: -1; visibility: hidden; max-width: 100%;"><div class="resize-sensor-expand" style="pointer-events: none; position: absolute; inset: 0px; overflow: hidden; z-index: -1; visibility: hidden; max-width: 100%;"><div style="position: absolute; left: 0px; top: 0px; transition: all 0s ease 0s; width: 1225px; height: 10px;"></div></div><div class="resize-sensor-shrink" style="pointer-events: none; position: absolute; inset: 0px; overflow: hidden; z-index: -1; visibility: hidden; max-width: 100%;"><div style="position: absolute; left: 0px; top: 0px; transition: all 0s ease 0s; width: 200%; height: 200%;"></div></div></div></div>
+<script type="text/javascript">
+admixerML.fn.push(function () { admixerML.display('admixer_8a539a0829134fd9807e076bdffb13e4_zone_3405_sect_226_site_226'); });
+</script>
+
+<!--bannertop-->
+<!--/noindex-->
+
+
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https:/

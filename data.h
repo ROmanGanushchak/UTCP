@@ -28,6 +28,7 @@ struct DataSegment {
     u16 seq;
     DataTypes type;
     bool isNextFragment;
+    u16 window;
 
     void* getExtraData() {
         return reinterpret_cast<void*>(this + 1);
@@ -59,5 +60,5 @@ struct Seg {
 };
 
 DataSegment* createDataSegment(DataTypes type, bool isNextFrag=false, int buffer=0);
-Seg getSeg(int seq, DataTypes type, bool isNext, u16 wantedSize, u16 maxSize=USHRT_MAX);
+Seg getSeg(int seq, DataTypes type, bool isNext, u32 wantedSize, u32 maxSize=USHRT_MAX);
 #endif

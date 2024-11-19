@@ -20,9 +20,10 @@ DataSegment* createDataSegment(DataTypes type, bool isNextFrag, int buffer) {
     return segment;
 }
 
-Seg getSeg(int seq, DataTypes type, bool isNext, u16 wantedSize, u16 maxSize) {
-    u16 size = _min(maxSize, wantedSize);
+Seg getSeg(int seq, DataTypes type, bool isNext, u32 wantedSize, u32 maxSize) {
+    u32 size = _min(maxSize, wantedSize);
     DataSegment* seg = (DataSegment*)malloc (sizeof(DataSegment)+size);
+    if (seg == NULL) return (Seg){.seg=NULL, .data=NULL, .dataSize=0};
     *seg = (DataSegment){.dataLength=size, .seq=seq, .type=type, .isNextFragment=isNext};
     return (Seg){.seg=seg, .data=((char*)seg)+sizeof(DataSegment), size};
 }
