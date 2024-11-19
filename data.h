@@ -60,5 +60,5 @@ struct Seg {
 };
 
 DataSegment* createDataSegment(DataTypes type, bool isNextFrag=false, int buffer=0);
-Seg getSeg(int seq, DataTypes type, bool isNext, u32 wantedSize, u32 maxSize=USHRT_MAX);
+Seg getSeg(int seq, DataTypes type, bool isNext, u32 wantedSize, u32 maxSize=UINT_MAX);
 #endif

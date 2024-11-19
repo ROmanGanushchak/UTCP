@@ -24,7 +24,6 @@ Connector::Connector(string ip, u16 port) : queue(1), toSend(2),
 void Connector::start() {
     isWorking = true;
     while (isWorking) {
-        // if (!timers.size() && sent.empty() && queue.isEmpty() && toSend.isEmpty()) continue;
         auto nowFullTime = std::chrono::system_clock::now();
         auto now = std::chrono::duration_cast<std::chrono::milliseconds>(nowFullTime.time_since_epoch()).count();
 
@@ -39,6 +38,7 @@ void Connector::start() {
                 timers.pop_front();
                 break;
             } else {
+                printf("The message with seq: %d was resend\n", elem->segment->seq);
                 sock.sendSegment(elem->segment);
                 elem->sentCount++;
                 timers.pop_front();
@@ -52,7 +52,7 @@ void Connector::start() {
             DataSegment* segment = queue.front();
             queue.pop();
             sent.setWindow(segment->window);
-            dprintf("Fragment received: type: %d, seq: %d\n", segment->type, segment->seq);
+            // printf("Fragment received: type: %d, seq: %d\n", segment->type, segment->seq);
             if (sysMessageHandler(segment, now)) {
                 free(segment);
                 continue;
@@ -116,11 +116,13 @@ void Connector::start() {
             sendKeepAlive(now);
         while (!toSend.isEmpty() && sent.getWindow()) {
             FragmentatorI* fr = toSend.front();
-            dprintf("Received frame %hu\n", fr->fragmentSize);
-            dprintf("Size: %d IsActivated: %d\n", fr->fragmentSize, fr->isActivated());
-
+            printf("Fragmentator: %p\n", fr);
             while (sent.getWindow() - sizeof(DataSegment) > 0 && !fr->isFinished()) {
                 DataSegment* segment = fr->getNextFragment(_min(maxDataSize, sent.getWindow() - sizeof(DataSegment)));
+                if (segment == NULL) break;
+                printf("Sending seg %p ", segment);
+                printf("%d, %d\n", segment, segment->type, segment->dataLength);
+                printf("Data: %.*s\n!!END!!\n", segment->dataLength, segment->getExtraData());
                 if (segment == NULL) break;
                 segment->seq = nextSeq;
                 dprintf("Adding element with seq: %d\n", segment->seq);
@@ -132,19 +134,20 @@ void Connector::start() {
                     timers.push_back((TimerUnit){.seq=segment->seq, .endTime=now + timeToMiss});
                     descriptor->timer = --timers.end();
                     sock.sendSegment(descriptor->segment);
-                    Sleep(200);
                     // sleep(0.2);
                 } else {
                     toSend.pushFront(new NoFragmentator(segment));
-                    printf("Critical error, the element was not added\nTrying to add seq: %d\n", segment->seq);
+                    // printf("Critical error, the element was not added\nTrying to add seq: %d\n", segment->seq);
                     break;
                 }
             }
             if (fr && fr->isFinished()) {
                 delete fr;
                 toSend.pop();
+                fr = nullptr;
             } else break;
         }
+        Sleep(1);
     }
 }
 
@@ -153,8 +156,11 @@ bool Connector::sysMessageHandler(DataSegment* seg, u64 now) {
     case DataTypes::ACK: {
         auto [elem, status] = sent.get(seg->seq);
         if (status == ReturnCodes::Success) {
+            // printf("Received ACK seq: %d\n", elem->segment->seq);
+            assert(elem->segment->seq == seg->seq && "Returned seq doesnt match\n");
             timers.erase(elem->timer);
             sent.markAsProcessed(seg->seq, true);
+            assert(sent.get(seg->seq).second != Success && "The element was not deleted from the sent\n");
         }
         return true;
     }

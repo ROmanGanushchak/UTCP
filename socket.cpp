@@ -70,7 +70,7 @@ void Socket::reading() {
             printf("The received was damaged or has incorrect size\n");
             continue;
         }
-        printf("Received the segment seq: %d, type: %d, dataSize: %d\n", tempSegment->seq, tempSegment->type, tempSegment->dataLength);
+        // printf("Received the segment seq: %d, type: %d, dataSize: %d\n", tempSegment->seq, tempSegment->type, tempSegment->dataLength);
         if (tempSegment->type == DataTypes::Connection || tempSegment->type == DataTypes::ConnectionApproval) {
             char senderIP[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &(_senderAddr.sin_addr), senderIP, INET_ADDRSTRLEN);
@@ -82,7 +82,8 @@ void Socket::reading() {
         DataSegment *segment = reinterpret_cast<DataSegment*>(malloc (sizeof(DataSegment) + tempSegment->dataLength));
         memcpy(segment, tempSegment, sizeof(DataSegment));
         memcpy(segment->getExtraData(), buffer+sizeof(DataSegment), tempSegment->dataLength);
-        dprintf("Received segment with seq: %hu, type: %d\n", segment->seq, segment->type);
+        // dprintf("Received segment with seq: %hu, type: %d\n", segment->seq, segment->type);
+        // printf("Adding seg with seq: %d, type: %d to queue\n", segment->seq, segment->type);
         this->queue.push(segment);
     }
 }

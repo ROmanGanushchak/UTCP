@@ -2,6 +2,7 @@
 #include "math.h"
 #include "fileFragment.h"
 #include "data.h"
+#include <cassert>
 using namespace std;
 
 u32 getRemainingBaits(FILE* file) {
@@ -15,6 +16,8 @@ u32 getRemainingBaits(FILE* file) {
 string FileDefragmentator::toSave = "D:/University/PKS/Protociol2/files";
 
 FileFragmentator::FileFragmentator(FILE* file, string name) : file(file) {
+    copy = fopen("D:/University/PKS/Protociol2/files/copy.py", "wb");
+
     fseek(file, 0, SEEK_END);
     fileSize = ftell(file);
     fseek(file, 0, SEEK_SET);
@@ -29,6 +32,7 @@ FileFragmentator::FileFragmentator(FILE* file, string name) : file(file) {
 FileFragmentator::~FileFragmentator() {
     if (file != NULL) 
         fclose(file);
+    if (copy) fclose(copy);
 }
 
 DataSegment* FileFragmentator::getNextFragment(u16 dataSize) {
@@ -36,26 +40,31 @@ DataSegment* FileFragmentator::getNextFragment(u16 dataSize) {
     bool isFirst = top == 0 && headerTop == 0;
     Seg seg;
     if (headerTop < header.size()) {
-        seg = getSeg(0, isFirst ? DataTypes::File : DataTypes::PureData, 
-            true, header.size()-headerTop, dataSize);
+        seg = getSeg(0, isFirst ? DataTypes::File : DataTypes::PureData, true, header.size()-headerTop, dataSize);
         if (seg.seg == NULL) return NULL;
         memcpy(seg.data, header.data()+headerTop, seg.dataSize);
         headerTop += seg.dataSize;
     } else {
-        seg = getSeg(0, isFirst ? DataTypes::File : DataTypes::PureData, false, fileSize-top, dataSize);
-        if (seg.seg == NULL) return NULL;
-        printf("Allowed space: %d, allocated space: %d\n", dataSize, seg.dataSize);
-        size_t bytesRead = fread(seg.data, 1, seg.dataSize, file);
-        seg.seg->isNextFragment = ftell(file) != fileSize;
+        seg = getSeg(0, isFirst ? DataTypes::File : DataTypes::PureData, true, dataSize);
+        if (seg.seg == NULL) {
+            printf("The memory for segment was not allocated\n");
+            return NULL;
+        }
+        size_t rad = fread(seg.data, 1, seg.dataSize, file);
+        assert(rad <= dataSize && "More baits where rad from file then allowed");
+        fwrite(seg.data, 1, rad, copy);
+        char last = fgetc(file);
+        if (last == EOF)
+            seg.seg->isNextFragment = false;
+        else
+            ungetc(last, file);
     }
-    // printf("SENDING %d: %.*s\n", seg.seg->seq, seg.seg->dataLength, (char*)seg.seg->getExtraData());
-    if (!seg.seg->isNextFragment) printf("It is last fragment");
     return seg.seg;
 }
 
 bool FileFragmentator::isFinished() {
-    printf("On finish check -> %llu %llu, remainingBaits: %d, isFinished: %d\n", ftell(file), fileSize, getRemainingBaits(file),  feof(file));
-    return ftell(file) == fileSize;
+    // printf("On finish check -> %llu %llu, remainingBaits: %d, isFinished: %d\n", ftell(file), fileSize, getRemainingBaits(file),  feof(file) != 0);
+    return feof(file) != 0;
 }
 
 
@@ -78,7 +87,9 @@ pair<bool, DataSegment*> FileDefragmentator::addNextFrag(DataSegment* seg) {
     // printf("DataReceived %d: %.*s\n!!!END!!!\n", seg->seq, seg->dataLength, (char*)seg->getExtraData());
     char *data = (char*) seg->getExtraData();
     u16 size = seg->dataLength;
-    printf("Buffer Data: %d %d\n", bufferTop, bufferCap);
+    printf("Received fragment for file seq: %d, size: %d\n", seg->seq, seg->dataLength);
+    // printf("%.*s\n!END!\n", size, data);
+    // printf("Buffer Data: %d %d\n", bufferTop, bufferCap);
     while (bufferTop != bufferCap) {
         u64 _size = _min(size, bufferCap-bufferTop);
         memcpy(buffer+bufferTop, data, _size);
@@ -101,13 +112,14 @@ pair<bool, DataSegment*> FileDefragmentator::addNextFrag(DataSegment* seg) {
             size -= _size;
         } else break;
     }
-    printf("FILE: %p\n", file);
-    if (file) {fwrite(data, sizeof(char), size, file); fflush(file);}
+    if (file) {
+        fwrite(data, sizeof(char), size, file); 
+        fflush(file);
+    }
     if (!seg->isNextFragment) {
         file = NULL;
         printf("The file saved: %s\n", filePath.c_str());
         return {true, NULL};
     }
-    // printf("Received fragment of file %hu\n", seg->seq);
     return {false, NULL};
 }

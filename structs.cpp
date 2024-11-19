@@ -48,7 +48,6 @@ int ModQueue<T>::getIndex(int seq) {
 
 template <typename T>
 pair<T*, ReturnCodes> ModQueue<T>::get(int seq) {
-    // printf("Arr size: %d, seq: %d, first: %d\n", arr.size(), seq, first);
     if (seq < first || seq >= first + arr.size() || states[seq % arr.size()] != States::Active)
         return {NULL, ReturnCodes::ACKWasAlreadyProceed};
     return {&arr[seq % arr.size()], ReturnCodes::Success};

@@ -17,10 +17,17 @@ using namespace std;
 int main() {
     bool inputIp = true;
     string ip;
+    vector<string> inputs;
     u16 port;
     if (inputIp) {
         printf("Input your ip and port\n");
         cin >> ip >> port;
+        if (port == 0) {
+            ip = "147.175.161.84"; port = 8080;
+        } else if (port == 1) {
+            ip = "147.175.161.84"; port = 8082;
+            inputs.push_back("connect 147.175.161.84 8080");
+        }
     } else {
         ip = "147.175.162.1";
         port = 8080;
@@ -32,12 +39,14 @@ int main() {
     ReceiveQueue<FragmentatorI*>& toSend = process1.getToSendQueue();
 
     printf("\nWrite the command to be executed\n");
-    string input;
-    string command;
-    string params;
+    string input, command, params;
     std::cin.ignore();
     while (true) {
-        std::getline(std::cin, input);
+        if (inputs.size()) {
+            input = inputs.back();
+            inputs.pop_back();
+        } else
+            std::getline(std::cin, input);
         u64 separator = input.find(' ');
         if (separator != std::string::npos) {
             command = input.substr(0, separator);
@@ -46,8 +55,7 @@ int main() {
             command = input;
             params = "";
         }
-        // printf("Input: %s, Command: %s, Params: %s\n", input.c_str(), command.c_str(), params.c_str());
-
+        
         if (command == "file") {
             FILE* file = fopen(params.c_str(), "rb");
             if (file == NULL) {
