@@ -64,21 +64,17 @@ template <typename T>
 bool ModQueue<T>::add(T elem, u32 size) {
     int seq = getAck(elem);
     int index = getIndex(seq);
-    if (seq < first || seq > first + 2*arr.size()) {// windowUsed + size > window,     states[index] != States::Empty 
-        // printf("Not added, seq: %d, size: %d, window: %d, index: %d, first: %d, arrSize: %d\n", seq, windowUsed+size, window, index, first, arr.size());
+    if (windowUsed + size > window || seq < first || seq > first + 2*arr.size()) 
         return false;
-    }
     if (states[index] != States::Empty) {
         if (seq < first + arr.size()) return false;
-        printf("Resized called, old size: %d, first: %d, newSeq: %d\n", arr.size(), first, seq);
         resize(arr.size() * 3);
         index = getIndex(seq);
-        printf("Resize called, new index: %d\n", index);
     }
     arr[index] = elem;
     states[index] = States::Active;
     elemCount++;
-    // windowUsed += size;
+    windowUsed += size;
     return true;
 }
 
@@ -179,7 +175,6 @@ ReceivedMessagesQueue::~ReceivedMessagesQueue() {
 }
 
 pair<bool, vector<DataSegment*>> ReceivedMessagesQueue::add(DataSegment *elem) {
-    printf("Sending seq: %d, size: %d, first: %d\n", elem->seq, arr.size(), first);
     if (!ModQueue<DataSegment*>::add(elem, elem->getFullLength())) 
         return {false, {}};
     if (elem->seq != first) return {true, {}};

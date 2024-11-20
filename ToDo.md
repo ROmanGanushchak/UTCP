@@ -1,5 +1,11 @@
-50~50 Add window / command to change window
+command to change window
 add seq reset to 0
+Add minimal fragment size
+Centralize fragment creation
+Make the print of each sended and received fragments visiable, receiver prints where the file was saved, time of transfer, size
+if the connection is lost during the file transfer the keepalive has to be sent, if no reply then cancle the file transfer
+add the transfer error
+possibility to choose where to save file after the acception
 
 Lua script
 

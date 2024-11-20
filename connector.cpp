@@ -12,7 +12,8 @@
 using namespace std;
 
 Connector::Connector(string ip, u16 port) : queue(1), toSend(2),
-    sock(queue, ip, port), sent(128), 
+    sock(queue, ip, port), 
+    received(128, 65000), sent(128),
     isWorking(false),
     isKeepAliveWarning(false)
 {
@@ -48,7 +49,7 @@ void Connector::start() {
 
         vector<DataSegment*> packets;
         bool isReceivedMessage = !queue.isEmpty();
-        while (!queue.isEmpty()) {
+        for (int i=0; i<3 && !queue.isEmpty(); i++) {
             DataSegment* segment = queue.front();
             queue.pop();
             sent.setWindow(segment->window);
@@ -112,18 +113,17 @@ void Connector::start() {
         //     }
         // }
 
-        if (!sent.getWindow() && now - lastSendedKeepAlive > 150)
+        if (!sent.getWindowSize() && now - lastSendedKeepAlive > 150)
             sendKeepAlive(now);
-        while (!toSend.isEmpty()) { // && sent.getWindow()
+        for (int i=0; i<3 && !toSend.isEmpty(); i++) { // && sent.getWindow()
             FragmentatorI* fr = toSend.front();
+            assert(fr != nullptr && "WTF how fr can be NULLLL");
+            if (sent.getWindowSize() - sizeof(DataSegment) > 0) {int a = 0;}
+            if (!fr->isFinished()) {int b = 0;}
             while (sent.getWindowSize() - sizeof(DataSegment) > 0 && !fr->isFinished()) { // sent.getWindow() - sizeof(DataSegment) > 0 &&
                 DataSegment* segment = fr->getNextFragment(_min(maxDataSize, sent.getWindowSize() - sizeof(DataSegment))); // _min(maxDataSize, sent.getWindow() - sizeof(DataSegment))
-                if (segment == NULL) break;
-                // printf("Sending seg %p ", segment);
-                // printf("%d, %d\n", segment, segment->type, segment->dataLength);
-                // printf("Data: %.*s\n!!END!!\n", segment->dataLength, segment->getExtraData());
+                if (segment == NULL) {printf("Received seg is NULL\n"); break;}
                 segment->seq = nextSeq;
-                dprintf("Adding element with seq: %d\n", segment->seq);
                 auto descriptor = sent.add((DataSegmentDescriptor){.segment=segment, .sentCount=0});
                 if (descriptor) {
                     nextSeq++;
@@ -134,6 +134,7 @@ void Connector::start() {
                     sock.sendSegment(descriptor->segment);
                 } else {
                     toSend.pushFront(new NoFragmentator(segment));
+                    fr = nullptr;
                     break;
                 }
             }
@@ -142,7 +143,6 @@ void Connector::start() {
                 toSend.pop();
             } else break;
         }
-        Sleep(1);
     }
 }
 

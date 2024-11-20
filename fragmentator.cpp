@@ -91,7 +91,7 @@ NoFragmentator::~NoFragmentator() {
 DataSegment* NoFragmentator::getNextFragment(u16 size) {
     auto temp = seg;
     seg = NULL;
-    return seg;
+    return temp;
 }
 
 bool NoFragmentator::isFinished() {

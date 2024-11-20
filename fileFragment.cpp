@@ -47,12 +47,12 @@ DataSegment* FileFragmentator::getNextFragment(u16 dataSize) {
     } else {
         seg = getSeg(0, isFirst ? DataTypes::File : DataTypes::PureData, true, dataSize);
         if (seg == NULL) return NULL;
-        size_t rad = fread(seg->getExtraData(), 1, seg->dataLength, file);
-        assert(rad <= dataSize && "More baits where rad from file then allowed");
-        fwrite(seg->getExtraData(), 1, rad, copy);
+        size_t red = fread(seg->getExtraData(), 1, seg->dataLength, file);
+        assert(red <= dataSize && "More baits where rad from file then allowed");
+        fwrite(seg->getExtraData(), 1, red, copy);
         char last = fgetc(file);
         if (last == EOF) {
-            u32 toDelete = seg->dataLength - rad;
+            u32 toDelete = seg->dataLength - red;
             seg = (DataSegment*)realloc(seg, seg->getFullLength()-toDelete);
             seg->dataLength -= toDelete; 
             seg->isNextFragment = false;
@@ -84,12 +84,8 @@ FileDefragmentator::~FileDefragmentator() {
 }
 
 pair<bool, DataSegment*> FileDefragmentator::addNextFrag(DataSegment* seg) {
-    // printf("DataReceived %d: %.*s\n!!!END!!!\n", seg->seq, seg->dataLength, (char*)seg->getExtraData());
     char *data = (char*) seg->getExtraData();
     u16 size = seg->dataLength;
-    printf("Received fragment for file seq: %d, size: %d\n", seg->seq, seg->dataLength);
-    // printf("%.*s\n!END!\n", size, data);
-    // printf("Buffer Data: %d %d\n", bufferTop, bufferCap);
     while (bufferTop != bufferCap) {
         u64 _size = _min(size, bufferCap-bufferTop);
         memcpy(buffer+bufferTop, data, _size);
