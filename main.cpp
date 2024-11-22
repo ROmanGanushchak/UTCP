@@ -50,7 +50,8 @@ int main() {
         u64 separator = input.find(' ');
         if (separator != std::string::npos) {
             command = input.substr(0, separator);
-            params = input.substr(separator+1);
+            params.assign(input.size() - separator - 1, '\0');
+            memcpy(params.data(), input.data() + separator + 1, params.size());
         } else {
             command = input;
             params = "";

@@ -20,7 +20,7 @@ void ModQueue<T>::resize(int newSize) {
         return;
     }
     vector<T> newArr(newSize);
-    vector<char> newStates(newSize, States::Empty);
+    vector<States> newStates(newSize, States::Empty);
     for (int i=0; i<arr.size(); i++) {
         if (states[i] != States::Active) continue;
         int index = getAck(arr[i]) % newSize;
@@ -47,10 +47,10 @@ int ModQueue<T>::getIndex(int seq) {
 }
 
 template <typename T>
-pair<T*, ReturnCodes> ModQueue<T>::get(int seq) {
+pair<T*, States> ModQueue<T>::get(int seq) {
     if (seq < first || seq >= first + arr.size() || states[seq % arr.size()] != States::Active)
-        return {NULL, ReturnCodes::ACKWasAlreadyProceed};
-    return {&arr[seq % arr.size()], ReturnCodes::Success};
+        return {NULL, States::Empty};
+    return {&arr[seq % arr.size()], States::Active};
 }
 
 template <typename T>
@@ -144,10 +144,17 @@ SentMessagesQueue::~SentMessagesQueue() {
 
 void SentMessagesQueue::markAsProcessed(int seq, bool toFree) {
     int index = del(seq);
+    if (index < 0) return;
     dprintf("Marked as proceed %d\n", seq);
     windowUsed -= arr[index].segment->getFullLength() * (index >= 0);
-    if (index >= 0 && toFree)
-        free(arr[index].segment); 
+    if (toFree) free(arr[index].segment);
+}
+
+bool SentMessagesQueue::changeState(int seq, States state) {
+    int index = getIndex(seq);
+    if (index < 0 || states[index] == States::Deleted || states[index] == States::Empty) return false;
+    states[index] = state;
+    return true;
 }
 
 DataSegmentDescriptor* SentMessagesQueue::add(DataSegmentDescriptor segment) {

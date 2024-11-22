@@ -56,18 +56,20 @@ enum ReturnCodes {
     ACKCantBeStoredInThisWindow = 2
 };
 
+enum class States : u8 {
+    Active,
+    Deleted,
+    Empty,
+    Suppresed,
+};
+
 template <typename T>
 class ModQueue {
 protected:
-    struct States {
-        static constexpr int Active = 0;
-        static constexpr int Deleted = 1;
-        static constexpr int Empty = 2;
-    };
     int first;
     int elemCount;
     std::vector<T> arr;
-    std::vector<char> states;
+    std::vector<States> states;
     u32 window;
     u32 windowUsed;
 
@@ -83,7 +85,7 @@ public:
     std::vector<T> iniq(u16 seq);
     void initFirst(u16 seq);
     // may return NULL as T* if index is invalid
-    std::pair<T*, ReturnCodes> get(int seq);
+    std::pair<T*, States> get(int seq);
     bool empty() {return elemCount != 0;}
     bool isFull() {return arr.size() == elemCount;}
     void setFirst(int _first) { first = _first; }
@@ -112,6 +114,7 @@ public:
     ~SentMessagesQueue();
     DataSegmentDescriptor* add(DataSegmentDescriptor segment);
     void markAsProcessed(int seq, bool free=false);
+    bool changeState(int seq, States state);
 };
 
 

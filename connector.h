@@ -13,6 +13,7 @@ private:
     SentMessagesQueue sent;
     ReceivedMessagesQueue received;
     std::list<TimerUnit> timers;
+    std::deque<DataSegment*> toResend;
 
     Socket sock;
     bool isWorking;
@@ -29,6 +30,7 @@ private:
     u16 maxDataSize = 1000;
     void sendConnectionMessage(std::string ip, u16 port, DataTypes type, bool isConfirmed);
     bool sysMessageHandler(DataSegment* segment, u64 now);
+    bool trySendFragment(DataSegment *seg, u64 now, bool updateData);
 
 public:
     Connector(std::string ip, u16 port);

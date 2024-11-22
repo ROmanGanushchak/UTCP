@@ -30,21 +30,19 @@ void Connector::start() {
 
         while (timers.size() && timers.front().endTime < now) {
             TimerUnit timer = timers.front();
+            timers.pop_front();
             auto [elem, status] = sent.get(timer.seq);
-            assert(status == ReturnCodes::Success && "The value is present in timer but was deleted from SentQueue");
+            assert(status == States::Active && "The value is present in timer but was deleted from SentQueue");
 
             if (elem->sentCount == maxSentCount) {
                 printf("The message with seq: %d was sent to many times and is considered gone\n", elem->segment->seq);
                 sent.markAsProcessed(elem->segment->seq, true);
-                timers.pop_front();
                 break;
-            } else {
-                printf("The message with seq: %d was resend\n", elem->segment->seq);
-                sock.sendSegment(elem->segment);
-                elem->sentCount++;
-                timers.pop_front();
-                timers.push_back((TimerUnit){.seq=timer.seq, .endTime=now + timeToMiss});
             }
+            toResend.push_back(elem->segment);
+            // elem->sentCount++;
+            sent.changeState(elem->segment->seq, States::Suppresed);
+            printf("The message with seq: %d was resend\n", elem->segment->seq);
         }
 
         vector<DataSegment*> packets;
@@ -146,16 +144,38 @@ void Connector::start() {
     }
 }
 
+bool Connector::trySendFragment(DataSegment *seg, u64 now, bool updateData) {
+    if (updateData) seg->seq = nextSeq;
+    auto [descriptor, state] = sent.get(seg->seq);
+    printf("Trying to send seq: %d, type: %d\n", seg->seq, seg->type);
+    if (state == States::Suppresed)
+        sent.changeState(seg->seq, States::Active);
+    else if (state != States::Active) {
+        descriptor = sent.add((DataSegmentDescriptor){.segment=seg, .sentCount=0});
+        if (!descriptor) return false;
+    } else return false;
+    printf("Sending upproved\n");
+    if (updateData) {
+        nextSeq++;
+        seg->window = received.getWindow();
+        initCrc(seg);
+    }
+    timers.push_back((TimerUnit){.seq=seg->seq, .endTime=now + timeToMiss});
+    descriptor->timer = std::prev(timers.end());
+    sock.sendSegment(descriptor->segment);
+    return true;
+}
+
 bool Connector::sysMessageHandler(DataSegment* seg, u64 now) {
     switch(seg->type) {
     case DataTypes::ACK: {
         auto [elem, status] = sent.get(seg->seq);
-        if (status == ReturnCodes::Success) {
+        if (status == States::Active) {
             // printf("Received ACK seq: %d\n", elem->segment->seq);
             assert(elem->segment->seq == seg->seq && "Returned seq doesnt match\n");
             timers.erase(elem->timer);
             sent.markAsProcessed(seg->seq, true);
-            assert(sent.get(seg->seq).second != Success && "The element was not deleted from the sent\n");
+            assert(sent.get(seg->seq).second != States::Active && "The element was not deleted from the sent\n");
         }
         return true;
     }
