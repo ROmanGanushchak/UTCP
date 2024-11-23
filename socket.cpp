@@ -3,6 +3,7 @@
 #include <iostream>
 #include "socket.h"
 #include "crc.h"
+#include <cassert>
 using namespace std;
 
 pair<string, u16> getAddrData(sockaddr_in* addr) {
@@ -59,31 +60,32 @@ void Socket::reading() {
     int clientAddrLen = sizeof(_senderAddr);
     while (isListening) {
         auto [ip, port] = getListeningData();
-        // printf("Listening on %s, %d\n", ip.c_str(), port);
         int recvSize = recvfrom(sock, buffer, sizeof(buffer), 0, (struct sockaddr*)&_senderAddr, &clientAddrLen);
         if (recvSize == SOCKET_ERROR) {
             std::cerr << "Recvfrom failed!" << std::endl;
             continue;
         }
         DataSegment *tempSegment = reinterpret_cast<DataSegment*>(buffer);
+        assert(recvSize < 2024 && tempSegment->dataLength + sizeof(DataSegment) < 2024 && "The received fragment has size bigger then the buffer");
         if (!checkCrc(tempSegment) || tempSegment->getFullLength() != recvSize) {
             printf("The received was damaged or has incorrect size\n");
             continue;
         }
-        // printf("Received the segment seq: %d, type: %d, dataSize: %d\n", tempSegment->seq, tempSegment->type, tempSegment->dataLength);
+        printf("Received the segment seq: %d, type: %d, dataSize: %d\n", tempSegment->seq, tempSegment->type, tempSegment->dataLength);
         if (tempSegment->type == DataTypes::Connection || tempSegment->type == DataTypes::ConnectionApproval) {
             char senderIP[INET_ADDRSTRLEN];
+            memset(senderIP, '\0', INET_ADDRSTRLEN);
+            assert(INET_ADDRSTRLEN <= sizeof(ReceivedConnectionData::ip));
             inet_ntop(AF_INET, &(_senderAddr.sin_addr), senderIP, INET_ADDRSTRLEN);
             u16 senderPort = ntohs(_senderAddr.sin_port);
-            ReceivedConnectionData data = {.port=senderPort, .ip=senderIP};
+            ReceivedConnectionData data = {.port=senderPort};
+            memcpy(&data.ip, senderIP, sizeof(ReceivedConnectionData::ip));
             memcpy(buffer+recvSize, (char*)&data, sizeof(ReceivedConnectionData));
             tempSegment->dataLength += sizeof(ReceivedConnectionData);
         }
         DataSegment *segment = reinterpret_cast<DataSegment*>(malloc (sizeof(DataSegment) + tempSegment->dataLength));
         memcpy(segment, tempSegment, sizeof(DataSegment));
         memcpy(segment->getExtraData(), buffer+sizeof(DataSegment), tempSegment->dataLength);
-        // dprintf("Received segment with seq: %hu, type: %d\n", segment->seq, segment->type);
-        // printf("Adding seg with seq: %d, type: %d to queue\n", segment->seq, segment->type);
         this->queue.push(segment);
     }
 }
@@ -127,6 +129,8 @@ int Socket::sendSegment(DataSegment *segment) {
     // printAddr(&senderAddr);
 
     std::lock_guard<std::mutex> lock(sendingMutex);
+    // if (true && rand() % 2 == 0) {printf("The message seq: %d, type: %d missed during sending\n", segment->seq, segment->type); return 0;}
+    // else {printf("Message seq: %d will be delivered\n", segment->seq);}
     int sentSize = sendto(sock, reinterpret_cast<char*>(segment), segment->getFullLength(), 0, (struct sockaddr*)&senderAddr, sizeof(senderAddr));
     if (sentSize == SOCKET_ERROR) 
         std::cerr << "sendto failed. Error: " << WSAGetLastError() << std::endl;

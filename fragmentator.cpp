@@ -83,6 +83,7 @@ DataSegment* Defragmentator::get() {
 
 NoFragmentator::NoFragmentator(DataSegment* seg) {
     this->seg = seg;
+    seg->seq = 0;
 }
 NoFragmentator::~NoFragmentator() {
     if (seg) free(seg);

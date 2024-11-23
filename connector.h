@@ -20,6 +20,7 @@ private:
     
     DefragmentatorI *currentDef;
 
+    u64 now;
     u64 lastReception;
     u64 lastSendedKeepAlive;
     bool isKeepAliveWarning;
@@ -29,8 +30,8 @@ private:
     int maxSentCount = 2;
     u16 maxDataSize = 1000;
     void sendConnectionMessage(std::string ip, u16 port, DataTypes type, bool isConfirmed);
-    bool sysMessageHandler(DataSegment* segment, u64 now);
-    bool trySendFragment(DataSegment *seg, u64 now, bool updateData);
+    bool sysMessageHandler(DataSegment* segment);
+    AddingStates trySendFragment(DataSegment *seg);
 
 public:
     Connector(std::string ip, u16 port);
@@ -38,7 +39,7 @@ public:
     void finish();
     void connect(std::string ip, u16 port);
     std::pair<bool, std::string> setMaxFragmentSize(u16 size);
-    void sendKeepAlive(u64 now);
+    void sendKeepAlive();
     void sendAck(u16 seq);
     void sendAck(u16 seq, std::string ip, u16 port);
     void quit(bool conf=true);

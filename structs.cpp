@@ -24,7 +24,7 @@ void ModQueue<T>::resize(int newSize) {
     for (int i=0; i<arr.size(); i++) {
         if (states[i] != States::Active) continue;
         int index = getAck(arr[i]) % newSize;
-        if (newStates[index] != States::Empty) {
+        if (newStates.at(index) != States::Empty) {
             for (int j=0; j<arr.size(); j++) {
                 if (states[j] == States::Active)
                     printf("Seq: %d\n", getAck(arr[j]));   
@@ -61,13 +61,14 @@ void ModQueue<T>::updateFirstValue() {
 }
 
 template <typename T>
-bool ModQueue<T>::add(T elem, u32 size) {
+AddingStates ModQueue<T>::add(T elem, u32 size) {
     int seq = getAck(elem);
     int index = getIndex(seq);
-    if (windowUsed + size > window || seq < first || seq > first + 2*arr.size()) 
-        return false;
+    if (windowUsed + size > window) return NoSize;
+    if (seq < first || seq > first + 2*arr.size()) 
+        return Incorrect;
     if (states[index] != States::Empty) {
-        if (seq < first + arr.size()) return false;
+        if (seq < first + arr.size()) return NoSize;
         resize(arr.size() * 3);
         index = getIndex(seq);
     }
@@ -75,7 +76,7 @@ bool ModQueue<T>::add(T elem, u32 size) {
     states[index] = States::Active;
     elemCount++;
     windowUsed += size;
-    return true;
+    return Added;
 }
 
 template <typename T>
@@ -83,10 +84,9 @@ int ModQueue<T>::del(int seq) {
     int index = getIndex(seq);
     if (index < 0 || states[index] != States::Active)
         return -1;
-#if DEBUG_PRINT
-    printf("Del at index: %d, first: %d, with seq: %d\n", index, first, seq);
-#endif
-    states[index] = States::Deleted;
+    dprintf("Del at index: %d, first: %d, with seq: %d\n", index, first, seq);
+    states.at(index) = States::Deleted;
+    elemCount--;
     if (first == seq) updateFirstValue();
     return index;
 }
@@ -133,6 +133,11 @@ bool ModQueue<T>::isAddable(u16 size) {
     return window - windowUsed >= size;
 }
 
+template <typename T>
+int ModQueue<T>::getFirst() {
+    return first;
+}
+
 
 SentMessagesQueue::SentMessagesQueue(int initCapacity, u32 window) : ModQueue(initCapacity, window) {}
 SentMessagesQueue::~SentMessagesQueue() {
@@ -151,16 +156,17 @@ void SentMessagesQueue::markAsProcessed(int seq, bool toFree) {
 }
 
 bool SentMessagesQueue::changeState(int seq, States state) {
+    if (seq < first || seq > first + arr.size()) return false;
     int index = getIndex(seq);
     if (index < 0 || states[index] == States::Deleted || states[index] == States::Empty) return false;
     states[index] = state;
     return true;
 }
 
-DataSegmentDescriptor* SentMessagesQueue::add(DataSegmentDescriptor segment) {
-    if (ModQueue<DataSegmentDescriptor>::add(segment, segment.segment->getFullLength())) 
-        return &arr[getIndex(segment.segment->seq)];
-    return NULL;
+pair<AddingStates, DataSegmentDescriptor*> SentMessagesQueue::add(DataSegmentDescriptor segment) {
+    AddingStates state = ModQueue<DataSegmentDescriptor>::add(segment, segment.segment->getFullLength());
+    if (state != Added) return {state, nullptr};
+    return {Added, &arr[getIndex(segment.segment->seq)]};
 }
 
 int SentMessagesQueue::getAck(DataSegmentDescriptor elem) {
@@ -182,7 +188,7 @@ ReceivedMessagesQueue::~ReceivedMessagesQueue() {
 }
 
 pair<bool, vector<DataSegment*>> ReceivedMessagesQueue::add(DataSegment *elem) {
-    if (!ModQueue<DataSegment*>::add(elem, elem->getFullLength())) 
+    if (ModQueue<DataSegment*>::add(elem, elem->getFullLength()) != Added) 
         return {false, {}};
     if (elem->seq != first) return {true, {}};
     int n = arr.size();

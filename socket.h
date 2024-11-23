@@ -14,7 +14,7 @@
 
 struct ReceivedConnectionData {
     u16 port;
-    std::string ip;
+    char ip[22];
 };
 
 enum SenderStates : u8 {

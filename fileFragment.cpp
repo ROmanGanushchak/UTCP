@@ -30,9 +30,15 @@ FileFragmentator::FileFragmentator(FILE* file, string name) : file(file) {
 }
 
 FileFragmentator::~FileFragmentator() {
-    if (file != NULL) 
+    printf("FileDefragCalled\n");
+    if (file != NULL) {
         fclose(file);
-    if (copy) fclose(copy);
+        file = NULL;
+    }
+    if (copy) {
+        fclose(copy); 
+        copy=NULL;
+    }
 }
 
 DataSegment* FileFragmentator::getNextFragment(u16 dataSize) {
@@ -73,14 +79,17 @@ FileDefragmentator::FileDefragmentator() : file(NULL), bufferTop(0) {
     buffer = (char*) malloc (bufferCap);
 }
 FileDefragmentator::~FileDefragmentator() {
-    free(buffer);
+    if (buffer) {
+        free(buffer);
+        buffer = NULL;
+    }
     if (file) {
         fflush(file);
         if (ferror(file)) printf("Error flushing file!\n");
         fclose(file);
         file = NULL;
     }
-    printf("The file receiption clear was called, the new file val: %d\n", file);
+    printf("The file receiption clear was called, the new file val: %p\n", file);
 }
 
 pair<bool, DataSegment*> FileDefragmentator::addNextFrag(DataSegment* seg) {

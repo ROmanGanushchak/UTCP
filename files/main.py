@@ -36,7 +36,4 @@ import time
 #     code = q.content
 #     soup = BeautifulSoup(code, "lxml")
 #
-#     for table in soup.find_all("div", class_="slovnik__letters dict-main"):
-#         for raw in table.find_all("li", class_="letters__item"):
-#             for field in raw.find_all("li"):
-#                 f.write(f"{url}{field.a['href']}\n")
+#     for table in

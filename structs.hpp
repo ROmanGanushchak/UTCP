@@ -56,6 +56,12 @@ enum ReturnCodes {
     ACKCantBeStoredInThisWindow = 2
 };
 
+enum AddingStates : u8 {
+    Added,
+    NoSize,
+    Incorrect,
+};
+
 enum class States : u8 {
     Active,
     Deleted,
@@ -75,7 +81,7 @@ protected:
 
     inline int getIndex(int seq);
     virtual int getAck(T elem) = 0;
-    bool add(T elem, u32 size);
+    AddingStates add(T elem, u32 size);
     // returns index of deleted or -1 if nothing was deleted
     int del(int seq);
     void updateFirstValue();
@@ -84,6 +90,7 @@ public:
     void resize(int newSize);
     std::vector<T> iniq(u16 seq);
     void initFirst(u16 seq);
+    int getFirst();
     // may return NULL as T* if index is invalid
     std::pair<T*, States> get(int seq);
     bool empty() {return elemCount != 0;}
@@ -112,7 +119,7 @@ protected:
 public:
     SentMessagesQueue(int initCapacity=4, u32 window=5000);
     ~SentMessagesQueue();
-    DataSegmentDescriptor* add(DataSegmentDescriptor segment);
+    std::pair<AddingStates, DataSegmentDescriptor*> add(DataSegmentDescriptor segment);
     void markAsProcessed(int seq, bool free=false);
     bool changeState(int seq, States state);
 };

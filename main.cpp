@@ -23,10 +23,10 @@ int main() {
         printf("Input your ip and port\n");
         cin >> ip >> port;
         if (port == 0) {
-            ip = "147.175.161.84"; port = 8080;
+            ip = "147.175.162.225"; port = 8080;
         } else if (port == 1) {
-            ip = "147.175.161.84"; port = 8082;
-            inputs.push_back("connect 147.175.161.84 8080");
+            ip = "147.175.162.225"; port = 8082;
+            inputs.push_back("connect 147.175.162.225 8080");
         }
     } else {
         ip = "147.175.162.1";
@@ -42,14 +42,16 @@ int main() {
     string input, command, params;
     std::cin.ignore();
     while (true) {
-        if (inputs.size()) {
+        if (!inputs.empty()) {
             input = inputs.back();
             inputs.pop_back();
         } else
             std::getline(std::cin, input);
+        if (input.empty()) continue;
         u64 separator = input.find(' ');
         if (separator != std::string::npos) {
             command = input.substr(0, separator);
+            printf("%d\n", input.size() - separator - 1);
             params.assign(input.size() - separator - 1, '\0');
             memcpy(params.data(), input.data() + separator + 1, params.size());
         } else {
@@ -69,6 +71,7 @@ int main() {
             size_t pos = params.rfind('/');
             if (pos == std::string::npos) pos = -1;
             string name = params.substr(pos+1);
+            printf("File: %p\n", file);
             toSend.push(new FileFragmentator(file, name));
         } else if (command == "connect") {
             char ip[32];

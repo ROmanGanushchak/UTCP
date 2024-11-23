@@ -25,6 +25,8 @@ Connector::Connector(string ip, u16 port) : queue(1), toSend(2),
 void Connector::start() {
     isWorking = true;
     while (isWorking) {
+        if (!queue.isEmpty()) printf("Queue is not empty\n");
+
         auto nowFullTime = std::chrono::system_clock::now();
         now = std::chrono::duration_cast<std::chrono::milliseconds>(nowFullTime.time_since_epoch()).count();
 
@@ -35,7 +37,7 @@ void Connector::start() {
             assert(status == States::Active && "The value is present in timer but was deleted from SentQueue");
             toResend.push_back(elem->segment);
             sent.changeState(elem->segment->seq, States::Suppresed);
-            printf("The message with seq: %d was resended\n", elem->segment->seq);
+            printf("The message with seq: %d was resend\n", elem->segment->seq);
         }
 
         vector<DataSegment*> packets;
@@ -44,14 +46,13 @@ void Connector::start() {
             DataSegment* segment = queue.front();
             queue.pop();
             sent.setWindow(segment->window);
-            printf("Fragment received: seq: %d, type: %d, isNext: %d, first: %d\n", segment->seq, segment->type, segment->isNextFragment, received.getFirst());
+            printf("Fragment received: seq: %d, type: %d, first: %d\n", segment->seq, segment->type, received.getFirst());
             if (sysMessageHandler(segment)) {
                 free(segment);
                 continue;
             }
             if (segment->seq < received.getFirst()) {
-                if (segment->type != DataTypes::ACK)
-                    sendAck(segment->seq);
+                sendAck(segment->seq);
                 free(segment);
                 continue;
             }
@@ -61,6 +62,7 @@ void Connector::start() {
             sendAck(segment->seq);
             dprintf("Added fragments %d, received fragments:\n", segment->seq);
             for (auto fragment : fragments) {
+                printf("Fragment from received: %d\n", fragment->seq);
                 if (fragment->type != DataTypes::PureData && !fragment->isNextFragment && fragment->type != DataTypes::File) {
                     packets.push_back(fragment);
                     continue;
@@ -135,7 +137,7 @@ void Connector::start() {
                 break;
             }
             if (fr && fr->isFinished()) {
-                delete fr;
+                // delete fr;
                 toSend.pop();
             } else break;
         }
@@ -144,17 +146,16 @@ void Connector::start() {
 
 AddingStates Connector::trySendFragment(DataSegment *seg) {
     auto [descriptor, state] = (seg->seq == 0) ? make_pair(nullptr, States::Empty) : sent.get(seg->seq);
-    printf("Received toSend seq: %d, state: %hhu\n", seg->seq, state);
+    printf("Received toSend seq: %d, state: %d\n", seg->seq, state);
     if (state == States::Deleted) return AddingStates::Incorrect;
     if (state == States::Suppresed)
         sent.changeState(seg->seq, States::Active);
     else if (state == States::Empty) {
-        seg->seq = nextSeq;
-        auto [_state, _descp] = sent.add((DataSegmentDescriptor){.segment=seg, .sentCount=0});
-        if (_state != AddingStates::Added) return _state;
-        nextSeq++;
+        seg->seq = nextSeq++;
         seg->window = received.getWindow();
         initCrc(seg);
+        auto [_state, _descp] = sent.add((DataSegmentDescriptor){.segment=seg, .sentCount=0});
+        if (_state != AddingStates::Added) return _state;
         descriptor = _descp;
     } else return AddingStates::Incorrect;
     timers.push_back((TimerUnit){.seq=seg->seq, .endTime=now + timeToMiss});
