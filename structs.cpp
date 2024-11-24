@@ -15,28 +15,30 @@ ModQueue<T>::ModQueue(int initCapacity, u32 window, int firstIndex)
 
 template <typename T>
 void ModQueue<T>::resize(int newSize) {
+    assert(arr.size() == states.size() && "Arr and States sizes have to be the same");
     if (states[first%arr.size()] == States::Empty) {
         arr.resize(newSize);
+        states.resize(newSize, States::Empty);
         return;
     }
-    vector<T> newArr(newSize);
     vector<States> newStates(newSize, States::Empty);
+    vector<T> newArr(newSize);
     for (int i=0; i<arr.size(); i++) {
-        if (states[i] != States::Active) continue;
-        int index = getAck(arr[i]) % newSize;
+        if (states[i] != States::Active && states[i] != States::Suppresed) continue;
+        int index = getSeq(arr[i]) % newSize;
         if (newStates.at(index) != States::Empty) {
             for (int j=0; j<arr.size(); j++) {
                 if (states[j] == States::Active)
-                    printf("Seq: %d\n", getAck(arr[j]));   
+                    printf("Seq: %d\n", getSeq(arr[j]));   
             }
-            printf("Broke on seq: %d, size: %d, newSize: %d\n", getAck(arr[i]), arr.size(), newSize);
+            printf("Broke on seq: %d, size: %d, newSize: %d\n", getSeq(arr[i]), arr.size(), newSize);
             throw std::length_error("The new container size is not big enough for all elements from prev conteiner in ModQueue");
         }
         newStates[index] = states[i];
         newArr[index] = arr[i];
     }
-    arr = newArr;
-    states = newStates;
+    states = std::move(newStates);
+    arr = std::move(newArr);
 }
 
 template <typename T>
@@ -48,7 +50,8 @@ int ModQueue<T>::getIndex(int seq) {
 
 template <typename T>
 pair<T*, States> ModQueue<T>::get(int seq) {
-    if (seq < first || seq >= first + arr.size() || states[seq % arr.size()] != States::Active)
+    if (seq < first || seq >= first + arr.size() || 
+        states[seq % arr.size()] != States::Active || getSeq(arr[seq%arr.size()]) != seq)
         return {NULL, States::Empty};
     return {&arr[seq % arr.size()], States::Active};
 }
@@ -62,15 +65,17 @@ void ModQueue<T>::updateFirstValue() {
 
 template <typename T>
 AddingStates ModQueue<T>::add(T elem, u32 size) {
-    int seq = getAck(elem);
-    int index = getIndex(seq);
     if (windowUsed + size > window) return NoSize;
-    if (seq < first || seq > first + 2*arr.size()) 
+    int seq = getSeq(elem);
+    int index = seq % arr.size();
+    if (seq < first || seq > first + 2*arr.size() || 
+        ((states[index] == States::Active || states[index] == States::Suppresed) && seq == getSeq(arr[index]))) 
         return Incorrect;
     if (states[index] != States::Empty) {
         if (seq < first + arr.size()) return NoSize;
-        resize(arr.size() * 3);
+        resize(arr.size() * 2);
         index = getIndex(seq);
+        assert(states[index] == States::Empty);
     }
     arr[index] = elem;
     states[index] = States::Active;
@@ -169,7 +174,7 @@ pair<AddingStates, DataSegmentDescriptor*> SentMessagesQueue::add(DataSegmentDes
     return {Added, &arr[getIndex(segment.segment->seq)]};
 }
 
-int SentMessagesQueue::getAck(DataSegmentDescriptor elem) {
+int SentMessagesQueue::getSeq(DataSegmentDescriptor elem) {
     return elem.segment->seq;
 }
 
@@ -177,7 +182,7 @@ int SentMessagesQueue::getAck(DataSegmentDescriptor elem) {
 ReceivedMessagesQueue::ReceivedMessagesQueue (int initCapacity, u32 window)
     : ModQueue(initCapacity, window) {}
 
-int ReceivedMessagesQueue::getAck(DataSegment* elem) {
+int ReceivedMessagesQueue::getSeq(DataSegment* elem) {
     return elem->seq;
 }
 
@@ -193,7 +198,7 @@ pair<bool, vector<DataSegment*>> ReceivedMessagesQueue::add(DataSegment *elem) {
     if (elem->seq != first) return {true, {}};
     int n = arr.size();
     vector<DataSegment*> rez;
-    for (; states[first%n] != States::Empty; first++) {
+    for (; states[first%n] != States::Empty && states[first%n] != States::Suppresed; first++) {
         if (states[first%n] == States::Active) {
             rez.push_back(arr[first%n]);
             windowUsed -= arr[first%n]->getFullLength();

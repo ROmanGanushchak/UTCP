@@ -12,7 +12,7 @@ void printData(DataSegment *segment) {
 }
 
 DataSegment* createDataSegment(DataTypes type, bool isNextFrag, int buffer) {
-    DataSegment* segment = reinterpret_cast<DataSegment*>(malloc (sizeof(DataSegment) + buffer));
+    DataSegment* segment = (DataSegment*) malloc (sizeof(DataSegment) + buffer);
     segment->dataLength = buffer;
     segment->isNextFragment = isNextFrag;
     segment->type = type;

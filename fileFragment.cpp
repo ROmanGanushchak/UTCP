@@ -24,13 +24,15 @@ FileFragmentator::FileFragmentator(FILE* file, string name) : file(file) {
     headerTop = 0;
 
     u16 size = name.size();
-    header.assign(name.size()+2, '0');
-    memcpy(header.data(), (char*)&size, sizeof(size));
-    strcpy(header.data()+2, name.c_str());
+    header = "";
+    header.reserve(size+2);
+    header.append(reinterpret_cast<char*>(&size), 2);
+    header += name;
+    printf("Header: %s, name: %s\n", header.c_str(), name.c_str());
 }
 
 FileFragmentator::~FileFragmentator() {
-    printf("FileDefragCalled\n");
+    printf("FileFragCalled\n");
     if (file != NULL) {
         fclose(file);
         file = NULL;
@@ -59,9 +61,9 @@ DataSegment* FileFragmentator::getNextFragment(u16 dataSize) {
         char last = fgetc(file);
         if (last == EOF) {
             u32 toDelete = seg->dataLength - red;
-            seg = (DataSegment*)realloc(seg, seg->getFullLength()-toDelete);
-            seg->dataLength -= toDelete; 
             seg->isNextFragment = false;
+            seg->dataLength -= toDelete;
+            seg = (DataSegment*)realloc(seg, seg->getFullLength());
         } else
             ungetc(last, file);
     }
@@ -69,7 +71,6 @@ DataSegment* FileFragmentator::getNextFragment(u16 dataSize) {
 }
 
 bool FileFragmentator::isFinished() {
-    // printf("On finish check -> %llu %llu, remainingBaits: %d, isFinished: %d\n", ftell(file), fileSize, getRemainingBaits(file),  feof(file) != 0);
     return feof(file) != 0;
 }
 
@@ -123,7 +124,7 @@ pair<bool, DataSegment*> FileDefragmentator::addNextFrag(DataSegment* seg) {
     }
     if (!seg->isNextFragment) {
         file = NULL;
-        printf("The file saved: %s\n", filePath.c_str());
+        printf("The file saved: %.*s\n", filePath.size(), filePath.c_str());
         return {true, NULL};
     }
     return {false, NULL};

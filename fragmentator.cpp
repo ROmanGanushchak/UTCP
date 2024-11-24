@@ -31,7 +31,7 @@ DataSegment* Fragmentator::getNextFragment(u16 maxSize) {
     } else {
         if (isFirst) top = sizeof(DataSegment);
         size = _min(maxSize, this->size-top);
-        seg = createDataSegment(type, top+size == this->size, size);
+        seg = createDataSegment(type, false, size);
         memcpy((char*)seg->getExtraData(), data+top, size);
     }
     seg->dataLength = size;

@@ -51,13 +51,12 @@ int main() {
         u64 separator = input.find(' ');
         if (separator != std::string::npos) {
             command = input.substr(0, separator);
-            printf("%d\n", input.size() - separator - 1);
-            params.assign(input.size() - separator - 1, '\0');
-            memcpy(params.data(), input.data() + separator + 1, params.size());
+            params = input.substr(separator+1);
         } else {
             command = input;
             params = "";
         }
+        std::istringstream data(params);
         
         if (command == "file") {
             FILE* file = fopen(params.c_str(), "rb");
@@ -74,9 +73,8 @@ int main() {
             printf("File: %p\n", file);
             toSend.push(new FileFragmentator(file, name));
         } else if (command == "connect") {
-            char ip[32];
-            u16 port;
-            if (sscanf(params.c_str(), "%s %d", ip, &port) != 2) {
+            string ip; u16 port;
+            if (!(data >> ip >> port)) {
                 printf("Invalid parans\n");
                 continue;
             }
@@ -85,7 +83,7 @@ int main() {
             break;
         } else if (command == "SetFragSize") {
             u32 maxFragmentSize;
-            if (sscanf(params.c_str(), "%u", &maxFragmentSize) != 1) {
+            if (!(data >> maxFragmentSize)) {
                 printf("Invalid params\n");
                 continue;
             }

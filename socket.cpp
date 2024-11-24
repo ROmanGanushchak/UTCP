@@ -25,8 +25,10 @@ sockaddr_in createSockAddr(string ip, uint port) {
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
     addr.sin_addr.s_addr = inet_addr(ip.c_str()); 
-    if (addr.sin_addr.s_addr == INADDR_NONE)
+    if (addr.sin_addr.s_addr == INADDR_NONE) {
         std::cerr <<  "Invalid IP address: " << ip << " " << WSAGetLastError() << std::endl;
+        addr.sin_addr.s_addr = INADDR_ANY;
+    }
     return addr;
 }
 
@@ -131,6 +133,7 @@ int Socket::sendSegment(DataSegment *segment) {
     std::lock_guard<std::mutex> lock(sendingMutex);
     // if (true && rand() % 2 == 0) {printf("The message seq: %d, type: %d missed during sending\n", segment->seq, segment->type); return 0;}
     // else {printf("Message seq: %d will be delivered\n", segment->seq);}
+    printf("Seg: %p\n", segment);
     int sentSize = sendto(sock, reinterpret_cast<char*>(segment), segment->getFullLength(), 0, (struct sockaddr*)&senderAddr, sizeof(senderAddr));
     if (sentSize == SOCKET_ERROR) 
         std::cerr << "sendto failed. Error: " << WSAGetLastError() << std::endl;

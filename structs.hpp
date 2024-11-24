@@ -80,13 +80,13 @@ protected:
     u32 windowUsed;
 
     inline int getIndex(int seq);
-    virtual int getAck(T elem) = 0;
+    virtual int getSeq(T elem) = 0;
     AddingStates add(T elem, u32 size);
     // returns index of deleted or -1 if nothing was deleted
     int del(int seq);
     void updateFirstValue();
 public:
-    ModQueue(int initCapacity=4, u32 window=65000, int firstIndex=0);
+    ModQueue(int initCapacity=4, u32 window=65000, int firstIndex=1);
     void resize(int newSize);
     std::vector<T> iniq(u16 seq);
     void initFirst(u16 seq);
@@ -105,7 +105,7 @@ public:
 
 class TestModQueue : public ModQueue<int> {
 protected:
-    virtual int getAck(int elem) override {
+    virtual int getSeq(int elem) override {
         return elem;
     };
 public:
@@ -115,7 +115,7 @@ public:
 
 class SentMessagesQueue : public ModQueue<DataSegmentDescriptor> {
 protected:
-    int getAck(DataSegmentDescriptor elem) override;
+    int getSeq(DataSegmentDescriptor elem) override;
 public:
     SentMessagesQueue(int initCapacity=4, u32 window=5000);
     ~SentMessagesQueue();
@@ -127,7 +127,7 @@ public:
 
 class ReceivedMessagesQueue : public ModQueue<DataSegment*> {
 protected:
-    int getAck(DataSegment* elem) override;
+    int getSeq(DataSegment* elem) override;
 public:
     ReceivedMessagesQueue(int initCapacity=16, u32 window=5000);
     ~ReceivedMessagesQueue();

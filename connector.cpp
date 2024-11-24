@@ -13,7 +13,7 @@ using namespace std;
 
 Connector::Connector(string ip, u16 port) : queue(1), toSend(2),
     sock(queue, ip, port), 
-    received(128, 65000), sent(128),
+    received(16, 65000), sent(16),
     isWorking(false),
     isKeepAliveWarning(false)
 {
@@ -32,7 +32,8 @@ void Connector::start() {
             TimerUnit timer = timers.front();
             timers.pop_front();
             auto [elem, status] = sent.get(timer.seq);
-            assert(status == States::Active && "The value is present in timer but was deleted from SentQueue");
+
+            assert(status == States::Active && (cerr << "The value is present in timer but was deleted from SentQueue. State: " << (u16)status << "\n", false));
             toResend.push_back(elem->segment);
             sent.changeState(elem->segment->seq, States::Suppresed);
             printf("The message with seq: %d was resended\n", elem->segment->seq);
@@ -46,6 +47,8 @@ void Connector::start() {
             sent.setWindow(segment->window);
             printf("Fragment received: seq: %d, type: %d, isNext: %d, first: %d\n", segment->seq, segment->type, segment->isNextFragment, received.getFirst());
             if (sysMessageHandler(segment)) {
+                if (segment->seq != 0 && segment->type != DataTypes::ACK)
+                    sendAck(segment->seq);
                 free(segment);
                 continue;
             }
@@ -72,8 +75,9 @@ void Connector::start() {
                         currentDef = new Defragmentator();
                 }
                 auto [isFinished, packet] = currentDef->addNextFrag(fragment);
+                if (packet != fragment) free(fragment);
                 if (!isFinished) continue;
-                if (packet != NULL) packets.push_back(packet); 
+                if (packet != NULL) packets.push_back(packet);
                 delete currentDef;
                 currentDef = NULL;
             }
@@ -102,8 +106,8 @@ void Connector::start() {
         //         }
         //     }
         //     if (now - lastReception > 5000 && now - lastSendedKeepAlive > 5000) 
-        //         sendKeepAlive(now);
-        //     if (!isKeepAliveWarning && now - lastReception > 50000) {
+        //         sendKeepAlive();
+        //     if (!isKeepAliveWarning && now - lastReception > 20000) {
         //         printf("The other side doesnt correspond to sended messages\nIf u with to quit the connection write 'quit' command\n");
         //         isKeepAliveWarning = true;
         //     }
@@ -111,7 +115,7 @@ void Connector::start() {
 
         if (!sent.getWindowSize() && now - lastSendedKeepAlive > 150)
             sendKeepAlive();
-        u16 maxSent = 7;
+        u16 maxSent = 7 * !isKeepAliveWarning;
         for (; maxSent>0 && !toResend.empty(); maxSent--) {
             DataSegment* seg = toResend.front();
             AddingStates state = trySendFragment(seg);
@@ -144,7 +148,7 @@ void Connector::start() {
 
 AddingStates Connector::trySendFragment(DataSegment *seg) {
     auto [descriptor, state] = (seg->seq == 0) ? make_pair(nullptr, States::Empty) : sent.get(seg->seq);
-    printf("Received toSend seq: %d, state: %hhu\n", seg->seq, state);
+    printf("Received toSend seq: %d, state: %hhu, type: %d\n", seg->seq, state, seg->type);
     if (state == States::Deleted) return AddingStates::Incorrect;
     if (state == States::Suppresed)
         sent.changeState(seg->seq, States::Active);
@@ -159,7 +163,7 @@ AddingStates Connector::trySendFragment(DataSegment *seg) {
     } else return AddingStates::Incorrect;
     timers.push_back((TimerUnit){.seq=seg->seq, .endTime=now + timeToMiss});
     descriptor->timer = std::prev(timers.end());
-    sock.sendSegment(descriptor->segment);
+    sock.sendSegment(seg);
     return AddingStates::Added;
 }
 

@@ -26,7 +26,7 @@ private:
     bool isKeepAliveWarning;
     u16 nextSeq;
     int leastAck;
-    int timeToMiss = 1000;
+    int timeToMiss = 2000;
     int maxSentCount = 2;
     u16 maxDataSize = 1000;
     void sendConnectionMessage(std::string ip, u16 port, DataTypes type, bool isConfirmed);
