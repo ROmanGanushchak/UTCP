@@ -10,8 +10,6 @@
 class FileFragmentator : public FragmentatorI {
 private:
     FILE *file;
-    FILE *copy;
-    u64 fileSize;
     std::string header;
     u16 headerTop;
 public:
@@ -34,5 +32,7 @@ public:
     ~FileDefragmentator();
     std::pair<bool, DataSegment*> addNextFrag(DataSegment* data);
 };
+
+bool setDefaultSavePath();
 
 #endif

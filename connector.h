@@ -25,7 +25,7 @@ private:
     u64 lastSendedKeepAlive;
     bool isKeepAliveWarning;
     u16 nextSeq;
-    int leastAck;
+    u16 lostCnt;
     int timeToMiss = 2000;
     int maxSentCount = 2;
     u16 maxDataSize = 1000;
@@ -44,6 +44,7 @@ public:
     std::pair<bool, std::string> setMaxFragmentSize(u16 size);
     void quit(bool conf=true);
     void setError(u16 coef);
+    void sendNextWithErr();
 
     ReceiveQueue<FragmentatorI*>& getToSendQueue() {return toSend;}
 };

@@ -33,7 +33,7 @@ sockaddr_in createSockAddr(string ip, uint port) {
 }
 
 Socket::Socket(ReceiveQueue<DataSegment*> &queue, std::string ip, u16 port) : 
-queue(queue), isListening(false), sendState(SenderStates::InActive), errorChance(0) {
+queue(queue), isListening(false), sendState(SenderStates::InActive), errorChance(0), sentNextWithError(false) {
     WSADATA wsa{};
     if (WSAStartup(MAKEWORD(2, 2), &wsa)) 
         throw invalid_argument("Failed to initialize Winsock. Error: " + WSAGetLastError());
@@ -70,11 +70,11 @@ void Socket::reading() {
         }
         DataSegment *tempSegment = reinterpret_cast<DataSegment*>(buffer);
         assert(recvSize < 2024 && tempSegment->dataLength + sizeof(DataSegment) < 2024 && "The received fragment has size bigger then the buffer");
-        if (!checkCrc(tempSegment) || tempSegment->getFullLength() != recvSize) {
+        if (tempSegment->getFullLength() != recvSize) {
             printf("The received was damaged or has incorrect size\n");
             continue;
         }
-        printf("Received the segment seq: %d, type: %d, dataSize: %d\n", tempSegment->seq, tempSegment->type, tempSegment->dataLength);
+        tempSegment->crc = !checkCrc(tempSegment);
         if (tempSegment->type == DataTypes::Connection || tempSegment->type == DataTypes::ConnectionApproval) {
             char senderIP[INET_ADDRSTRLEN];
             memset(senderIP, '\0', INET_ADDRSTRLEN);
@@ -128,12 +128,16 @@ int Socket::sendSegment(DataSegment *segment) {
         printf("Trying to send message without initialization of sender data\n");
         return -1;
     }
-    // printf("Sending message with seq: %d, type: %d size: %d with\n", segment->seq, segment->type, segment->dataLength);
-    // printAddr(&senderAddr);
 
     std::lock_guard<std::mutex> lock(sendingMutex);
-    if (errorChance == 1 || (errorChance && rand() % errorChance == 0)) return 0;
+    // if (errorChance == 1 || (errorChance && rand() % errorChance == 0)) return 0;
+    if (sentNextWithError) segment->crc ^= 0b00101001;
     int sentSize = sendto(sock, reinterpret_cast<char*>(segment), segment->getFullLength(), 0, (struct sockaddr*)&senderAddr, sizeof(senderAddr));
+    if (sentNextWithError) {
+        printf("Sended with err\n");
+        segment->crc ^= 0b00101001;
+        sentNextWithError--;
+    }
     if (sentSize == SOCKET_ERROR) 
         std::cerr << "sendto failed. Error: " << WSAGetLastError() << std::endl;
     return sentSize;
@@ -171,4 +175,8 @@ bool Socket::isSettedUp() {
 
 void Socket::setError(u16 coef) {
     errorChance = coef;
+}
+
+void Socket::sendNextWithErr() {
+    sentNextWithError = 5;
 }

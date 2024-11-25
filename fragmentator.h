@@ -1,5 +1,7 @@
 #ifndef FRAGMENTATOR_H
 #define FRAGMENTATOR_H
+#include <chrono>
+#include "unordered_map"
 #include "types.h"
 #include "data.h"
 #include "crc.h"
@@ -8,7 +10,6 @@ class FragmentatorI {
 public:
     virtual DataSegment* getNextFragment(u16 maxSize) = 0;
     virtual bool isFinished() = 0;
-    virtual ~FragmentatorI() = default;
 };
 
 class Fragmentator : public FragmentatorI {
@@ -36,9 +37,26 @@ public:
 };
 
 class DefragmentatorI {
+private:
+    std::unordered_map<int, int> sizes;
+    u64 start;
 public:
-    virtual std::pair<bool, DataSegment*> addNextFrag(DataSegment* data) = 0;
-    virtual ~DefragmentatorI() = default;
+    DefragmentatorI() {
+        auto nowFullTime = std::chrono::system_clock::now();
+        start = std::chrono::duration_cast<std::chrono::milliseconds>(nowFullTime.time_since_epoch()).count();
+    }
+    virtual std::pair<bool, DataSegment*> addNextFrag(DataSegment* data) {
+        sizes[data->dataLength]++;
+        return {false, NULL};
+    }
+    virtual ~DefragmentatorI() {
+        auto nowFullTime = std::chrono::system_clock::now();
+        u64 now = std::chrono::duration_cast<std::chrono::milliseconds>(nowFullTime.time_since_epoch()).count();
+        printf("The time of transfer the time taken: %lf\nThe sizes of the fragments (size, count): ", (now - start) / (double)1000);
+        for (auto elem : sizes) 
+            printf("(%d %d) ", elem.first, elem.second);
+        printf("\n");
+    }
 };
 
 class Defragmentator : public DefragmentatorI {

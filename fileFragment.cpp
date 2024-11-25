@@ -1,26 +1,27 @@
+#include <cassert>
 #include "string.h"
 #include "math.h"
 #include "fileFragment.h"
 #include "data.h"
-#include <cassert>
+#include "windows.h"
 using namespace std;
 
-u32 getRemainingBaits(FILE* file) {
-    long currentPos = ftell(file);
-    fseek(file, 0, SEEK_END);
-    long endPos = ftell(file);
-    fseek(file, currentPos, SEEK_SET);
-    return endPos - currentPos;
+string FileDefragmentator::toSave = "D:/University/PKS/Protociol2/files";
+bool setDefaultSavePath() {
+    char modPath[MAX_PATH];
+    GetModuleFileNameA(NULL, modPath, MAX_PATH);
+    string dirPath = modPath;
+    dirPath = dirPath.substr(0, dirPath.find_last_of("\\/"));
+    dirPath.append("\\files");
+    if (CreateDirectoryA(dirPath.c_str(), NULL) || GetLastError() == ERROR_ALREADY_EXISTS) {
+        FileDefragmentator::toSave = dirPath;
+        return true;
+    }
+    cout << "Error during default gateway folder creation: " << GetLastError() << "\n";
+    return false;
 }
 
-string FileDefragmentator::toSave = "D:/University/PKS/Protociol2/files";
-
 FileFragmentator::FileFragmentator(FILE* file, string name) : file(file) {
-    copy = fopen("D:/University/PKS/Protociol2/files/copy.py", "wb");
-
-    fseek(file, 0, SEEK_END);
-    fileSize = ftell(file);
-    fseek(file, 0, SEEK_SET);
     headerTop = 0;
 
     u16 size = name.size();
@@ -32,14 +33,9 @@ FileFragmentator::FileFragmentator(FILE* file, string name) : file(file) {
 }
 
 FileFragmentator::~FileFragmentator() {
-    printf("FileFragCalled\n");
     if (file != NULL) {
         fclose(file);
         file = NULL;
-    }
-    if (copy) {
-        fclose(copy); 
-        copy=NULL;
     }
 }
 
@@ -57,7 +53,6 @@ DataSegment* FileFragmentator::getNextFragment(u16 dataSize) {
         if (seg == NULL) return NULL;
         size_t red = fread(seg->getExtraData(), 1, seg->dataLength, file);
         assert(red <= dataSize && "More baits where rad from file then allowed");
-        fwrite(seg->getExtraData(), 1, red, copy);
         char last = fgetc(file);
         if (last == EOF) {
             u32 toDelete = seg->dataLength - red;
@@ -90,10 +85,10 @@ FileDefragmentator::~FileDefragmentator() {
         fclose(file);
         file = NULL;
     }
-    printf("The file receiption clear was called, the new file val: %p\n", file);
 }
 
 pair<bool, DataSegment*> FileDefragmentator::addNextFrag(DataSegment* seg) {
+    DefragmentatorI::addNextFrag(seg);
     char *data = (char*) seg->getExtraData();
     u16 size = seg->dataLength;
     while (bufferTop != bufferCap) {
@@ -123,9 +118,9 @@ pair<bool, DataSegment*> FileDefragmentator::addNextFrag(DataSegment* seg) {
         fflush(file);
     }
     if (!seg->isNextFragment) {
-        file = NULL;
-        printf("The file saved: %.*s\n", filePath.size(), filePath.c_str());
-        return {true, NULL};
+        printf("The file saved: %.*s, number of characters: %d\n", filePath.size(), filePath.c_str(), ftell(file));
+        file = nullptr;
+        return {true, nullptr};
     }
-    return {false, NULL};
+    return {false, nullptr};
 }

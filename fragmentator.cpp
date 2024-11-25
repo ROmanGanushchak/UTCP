@@ -29,7 +29,7 @@ DataSegment* Fragmentator::getNextFragment(u16 maxSize) {
         seg = reinterpret_cast<DataSegment*>(data);   
         this->data = NULL;
     } else {
-        if (isFirst) top = sizeof(DataSegment);
+        if (isFirst && isHeader) top = sizeof(DataSegment);
         size = _min(maxSize, this->size-top);
         seg = createDataSegment(type, false, size);
         memcpy((char*)seg->getExtraData(), data+top, size);
@@ -61,6 +61,7 @@ void Defragmentator::addData(char* data, int size) {
 }
 
 pair<bool, DataSegment*> Defragmentator::addNextFrag(DataSegment* data) {
+    DefragmentatorI::addNextFrag(data);
     dprintf("Defragmentator Received: type: %d, isNext: %d\n", data->type, data->isNextFragment);
     if (data->type != DataTypes::PureData && !data->isNextFragment) {
         this->data = NULL;

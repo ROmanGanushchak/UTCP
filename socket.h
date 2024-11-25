@@ -30,6 +30,7 @@ private:
     sockaddr_in senderAddr;
     SenderStates sendState;
     bool isListening;
+    u16 sentNextWithError;
     u16 errorChance;
     char buffer[2048];
     ReceiveQueue<DataSegment*> &queue;
@@ -51,6 +52,7 @@ public:
     std::pair<std::string, u16> getSenderData();
     inline std::pair<std::string, u16> getListeningData();
     void setError(u16 coef);
+    void sendNextWithErr();
 };
 
 #endif

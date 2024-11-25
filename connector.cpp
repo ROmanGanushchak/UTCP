@@ -11,13 +11,21 @@
 
 using namespace std;
 
+char* stringToAlloc(string text) {
+    char* data = (char*) malloc (text.size()+1);
+    memcpy(data, text.data(), text.size());
+    data[text.size()] = '\0';
+    return data;
+}
+
 Connector::Connector(string ip, u16 port) : queue(1), toSend(2),
     sock(queue, ip, port), 
-    received(16, 65000), sent(16, 65000),
+    received(16, 240000), sent(16, 65000),
     isWorking(false),
-    isKeepAliveWarning(false)
+    isKeepAliveWarning(false),
+    currentDef(nullptr),
+    lostCnt(0)
 {
-    leastAck = -1;
     nextSeq = 1;
     sock.startReading();
 };
@@ -46,8 +54,15 @@ void Connector::start() {
         for (int i=0; i<3 && !queue.isEmpty(); i++) {
             DataSegment* segment = queue.front();
             queue.pop();
+            if (segment->crc != 0) {
+                if (segment->isNextFragment || segment->type == DataTypes::PureData) 
+                    lostCnt++;
+                printf("The fragment seq: %d, type: %d was received with an error\n", segment->seq, segment->type);
+                free(segment);
+                continue;
+            }
             sent.setWindow(segment->window);
-            printf("Fragment received: seq: %d, type: %d, isNext: %d, first: %d\n", segment->seq, segment->type, segment->isNextFragment, received.getFirst());
+            printf("Fragment received: seq: %d, type: %d, size: %hu, isNext: %d, first: %d\n", segment->seq, segment->type, segment->dataLength, segment->isNextFragment, received.getFirst());
             if (sysMessageHandler(segment)) {
                 if (segment->seq != 0 && segment->type != DataTypes::ACK)
                     sendAck(segment->seq);
@@ -64,12 +79,11 @@ void Connector::start() {
             auto [isAdded, fragments] = received.add(segment);
             if (!isAdded) break;
             sendAck(segment->seq);
-            dprintf("Added fragments %d, received fragments:\n", segment->seq);
             for (auto fragment : fragments) {
-                if (fragment->type != DataTypes::PureData && !fragment->isNextFragment && fragment->type != DataTypes::File) {
-                    packets.push_back(fragment);
-                    continue;
-                }
+                // if (fragment->type != DataTypes::PureData && !fragment->isNextFragment && fragment->type != DataTypes::File) {
+                //     packets.push_back(fragment);
+                //     continue;
+                // }
                 if (fragment->type != DataTypes::PureData) {
                     if (fragment->type == DataTypes::File)
                         currentDef = new FileDefragmentator();
@@ -81,7 +95,10 @@ void Connector::start() {
                 if (!isFinished) continue;
                 if (packet != NULL) packets.push_back(packet);
                 delete currentDef;
-                currentDef = NULL;
+                currentDef = nullptr;
+
+                printf("The fragments in the packet lost: %d\n", lostCnt);
+                lostCnt++;
             }
         }
 
@@ -99,33 +116,30 @@ void Connector::start() {
         }
 
         // keep-alive
-        // if (sock.getIsConfigured()) {
-        //     if (isReceivedMessage) {
-        //         lastReception = now;
-        //         if (isKeepAliveWarning) {
-        //             printf("The other side is back\n");
-        //             isKeepAliveWarning = false;
-        //         }
-        //     }
-        //     if (now - lastReception > 5000 && now - lastSendedKeepAlive > 5000) 
-        //         sendKeepAlive();
-        //     if (!isKeepAliveWarning && now - lastReception > 20000) {
-        //         printf("The other side doesnt correspond to sended messages\nIf u with to quit the connection write 'quit' command\n");
-        //         isKeepAliveWarning = true;
-        //     }
-        // }
+        if (sock.getIsConfigured()) {
+            if (isReceivedMessage) {
+                lastReception = now;
+                if (isKeepAliveWarning) {
+                    printf("The other side is back\n");
+                    isKeepAliveWarning = false;
+                }
+            }
+            if (now - lastReception > 5000 && now - lastSendedKeepAlive > 5000) 
+                sendKeepAlive();
+            if (!isKeepAliveWarning && now - lastReception > 20000) {
+                printf("The other side doesnt correspond to sended messages\nIf u with to quit the connection write 'quit' command\n");
+                isKeepAliveWarning = true;
+            }
+        }
 
         if (!sent.getWindowSize() && now - lastSendedKeepAlive > 150)
             sendKeepAlive();
         u16 maxSent = 7 * !isKeepAliveWarning;
         for (; maxSent>0 && !toResend.empty(); maxSent--) {
             DataSegment* seg = toResend.front();
-            // toResend.pop_front();
             AddingStates state = trySendFragment(seg);
-            printf("SendingState: %d\n", state);
             if (state == Added || state == Incorrect)
                 toResend.pop_front();
-                // toResend.push_back(seg);
             if (state == NoSize || state == Incorrect) 
                 maxSent = 1;
         }
@@ -160,7 +174,6 @@ AddingStates Connector::trySendFragment(DataSegment *seg) {
     } else if (state == States::Empty) {
         seg->seq = nextSeq;
         auto [_state, _descp] = sent.add((DataSegmentDescriptor){.segment=seg, .sentCount=0});
-        printf("Trying to add, _state: %hhu\n", _state);
         if (_state != AddingStates::Added) return _state;
         nextSeq++;
         seg->window = received.getWindow();
@@ -178,7 +191,7 @@ bool Connector::sysMessageHandler(DataSegment* seg) {
     case DataTypes::ACK: {
         auto [elem, status] = sent.get(seg->seq);
         if (status == States::Active) {
-            printf("Received ACK seq: %d\n", elem->segment->seq);
+            // printf("Received ACK seq: %d\n", elem->segment->seq);
             assert(elem->segment->seq == seg->seq && "Returned seq doesnt match\n");
             timers.erase(elem->timer);
             sent.markAsProcessed(seg->seq, true);
@@ -202,7 +215,6 @@ bool Connector::sysMessageHandler(DataSegment* seg) {
         received.iniq(seg->seq+1);
         timers.clear();
         sendConnectionMessage(data->ip, data->port, DataTypes::ConnectionApproval, true);
-        sendAck(seg->seq, data->ip, data->port);
         lastReception = now;
         lastSendedKeepAlive = now;
         return true;
@@ -217,7 +229,6 @@ bool Connector::sysMessageHandler(DataSegment* seg) {
         received.iniq(seg->seq+1);
         sock.confirmConfiguration();
         timers.clear();
-        sendAck(seg->seq);
         lastReception = now;
         lastSendedKeepAlive = now;
         return true;
@@ -238,7 +249,7 @@ void Connector::sendConnectionMessage(string ip, u16 port, DataTypes type, bool 
     DataSegment *seg = (DataSegment*) malloc(sizeof(DataSegment));
     *seg = {.dataLength=0, .seq=0, .type=type, .isNextFragment=false};
     printf("Connection message seq: %d\n", seg->seq);
-    toResend.push_back(seg);
+    toSend.push(new NoFragmentator(seg));
 }
 
 void Connector::sendAck(u16 seq) {
@@ -304,4 +315,8 @@ void Connector::quit(bool conf) {
 void Connector::setError(u16 coef) { 
     sock.setError(coef);
     printf("The error chance is set to 1 / %d\n", coef); 
+}
+
+void Connector::sendNextWithErr() {
+    sock.sendNextWithErr();
 }
