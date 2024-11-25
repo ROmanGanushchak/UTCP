@@ -13,7 +13,7 @@ using namespace std;
 
 Connector::Connector(string ip, u16 port) : queue(1), toSend(2),
     sock(queue, ip, port), 
-    received(16, 65000), sent(16),
+    received(16, 65000), sent(16, 65000),
     isWorking(false),
     isKeepAliveWarning(false)
 {
@@ -299,4 +299,9 @@ void Connector::quit(bool conf) {
     vector<DataSegment*> _received = received.iniq(0);
     for (auto elem : _received) free(elem);
     timers.clear();
+}
+
+void Connector::setError(u16 coef) { 
+    sock.setError(coef);
+    printf("The error chance is set to 1 / %d\n", coef); 
 }

@@ -32,6 +32,9 @@ private:
     void sendConnectionMessage(std::string ip, u16 port, DataTypes type, bool isConfirmed);
     bool sysMessageHandler(DataSegment* segment);
     AddingStates trySendFragment(DataSegment *seg);
+    void sendKeepAlive();
+    void sendAck(u16 seq);
+    void sendAck(u16 seq, std::string ip, u16 port);
 
 public:
     Connector(std::string ip, u16 port);
@@ -39,10 +42,8 @@ public:
     void finish();
     void connect(std::string ip, u16 port);
     std::pair<bool, std::string> setMaxFragmentSize(u16 size);
-    void sendKeepAlive();
-    void sendAck(u16 seq);
-    void sendAck(u16 seq, std::string ip, u16 port);
     void quit(bool conf=true);
+    void setError(u16 coef);
 
     ReceiveQueue<FragmentatorI*>& getToSendQueue() {return toSend;}
 };

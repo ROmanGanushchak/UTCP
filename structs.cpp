@@ -51,10 +51,7 @@ int ModQueue<T>::getIndex(int seq) {
 template <typename T>
 pair<T*, States> ModQueue<T>::get(int seq) {
     u32 index = seq % arr.size();
-    printf("State at given seq: %d, index: %hhu, first: %d, size: %d, stateAtIndex: %hhu\nSegs: ", seq, states[index], first, arr.size(), states[index]);
-    for (int i=0; i<arr.size(); i++) 
-        if (states[i] == States::Active) printf("%d ", getSeq(arr[i]));
-    printf("\n");
+    // printf("State at given seq: %d, index: %hhu, first: %d, size: %d, stateAtIndex: %hhu\n", seq, states[index], first, arr.size(), states[index]);
     if (seq < first || seq >= first + arr.size() || 
         (states[index] != States::Active && states[index] != States::Suppresed) ||
         getSeq(arr[index]) != seq)

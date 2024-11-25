@@ -32,7 +32,8 @@ sockaddr_in createSockAddr(string ip, uint port) {
     return addr;
 }
 
-Socket::Socket(ReceiveQueue<DataSegment*> &queue, std::string ip, u16 port) : queue(queue), isListening(false), sendState(SenderStates::InActive){
+Socket::Socket(ReceiveQueue<DataSegment*> &queue, std::string ip, u16 port) : 
+queue(queue), isListening(false), sendState(SenderStates::InActive), errorChance(0) {
     WSADATA wsa{};
     if (WSAStartup(MAKEWORD(2, 2), &wsa)) 
         throw invalid_argument("Failed to initialize Winsock. Error: " + WSAGetLastError());
@@ -131,9 +132,7 @@ int Socket::sendSegment(DataSegment *segment) {
     // printAddr(&senderAddr);
 
     std::lock_guard<std::mutex> lock(sendingMutex);
-    if (true && rand() % 5 == 0 && segment->type != DataTypes::ACK) {return 0;}
-    // else {printf("Message seq: %d will be delivered\n", segment->seq);}
-    printf("Seg: %p\n", segment);
+    if (errorChance == 1 || (errorChance && rand() % errorChance == 0)) return 0;
     int sentSize = sendto(sock, reinterpret_cast<char*>(segment), segment->getFullLength(), 0, (struct sockaddr*)&senderAddr, sizeof(senderAddr));
     if (sentSize == SOCKET_ERROR) 
         std::cerr << "sendto failed. Error: " << WSAGetLastError() << std::endl;
@@ -168,4 +167,8 @@ pair<string, u16> Socket::getListeningData() {
 
 bool Socket::isSettedUp() {
     return sendState != SenderStates::InActive;
+}
+
+void Socket::setError(u16 coef) {
+    errorChance = coef;
 }

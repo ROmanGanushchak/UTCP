@@ -30,6 +30,7 @@ private:
     sockaddr_in senderAddr;
     SenderStates sendState;
     bool isListening;
+    u16 errorChance;
     char buffer[2048];
     ReceiveQueue<DataSegment*> &queue;
     std::mutex sendingMutex;
@@ -49,6 +50,7 @@ public:
     inline bool isSettedUp();
     std::pair<std::string, u16> getSenderData();
     inline std::pair<std::string, u16> getListeningData();
+    void setError(u16 coef);
 };
 
 #endif

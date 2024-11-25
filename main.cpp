@@ -92,6 +92,13 @@ int main() {
             process1.quit();
         } else if (command == "savePlace") {
             FileDefragmentator::toSave = params;
+        } else if (command == "setError") {
+            u16 errorChance;
+            if (!(data >> errorChance)) {
+                printf("Invalid parans\n");
+                continue;
+            }
+            process1.setError(errorChance);
         } else {
             DataSegment* segment = createDataSegment(DataTypes::String, false, input.size());
             memcpy((char*)segment->getExtraData(), input.c_str(), input.size());
