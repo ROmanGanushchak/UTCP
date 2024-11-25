@@ -14,7 +14,7 @@ set(SOURCE_FILES
     structs.cpp
     crc.cpp)
 
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libgcc -static-libstdc++ -static")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libgcc -static-libstdc++ -static")
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 

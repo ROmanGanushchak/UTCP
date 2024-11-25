@@ -4,7 +4,7 @@
 using namespace std;
 
 void printData(DataSegment *segment) {
-    printf("ACK: %d\nLength: %d\nType: %d\nData: ", segment->seq, segment->dataLength, segment->type);
+    printf("Seq: %d\nLength: %d\nType: %d\nData: ", segment->seq, segment->dataLength, segment->type);
     char *data = reinterpret_cast<char*>(segment) + sizeof(DataSegment);
     for (int i=0; i<segment->dataLength; i++)
         printf("(%d %c), ", data[i], data[i]);

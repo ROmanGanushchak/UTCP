@@ -32,10 +32,12 @@ void Connector::start() {
             TimerUnit timer = timers.front();
             timers.pop_front();
             auto [elem, status] = sent.get(timer.seq);
-
-            assert(status == States::Active && (cerr << "The value is present in timer but was deleted from SentQueue. State: " << (u16)status << "\n", false));
+            printf("ToResendStatus: %hhu, for seq: %d\n", status, timer.seq);
+            assert(status == States::Active && "The value is present in timer but was deleted from SentQueue");
+            
             toResend.push_back(elem->segment);
             sent.changeState(elem->segment->seq, States::Suppresed);
+            assert(sent.get(elem->segment->seq).second == States::Suppresed);
             printf("The message with seq: %d was resended\n", elem->segment->seq);
         }
 
@@ -118,10 +120,12 @@ void Connector::start() {
         u16 maxSent = 7 * !isKeepAliveWarning;
         for (; maxSent>0 && !toResend.empty(); maxSent--) {
             DataSegment* seg = toResend.front();
+            // toResend.pop_front();
             AddingStates state = trySendFragment(seg);
             printf("SendingState: %d\n", state);
-            if (state == Added || state == Incorrect) 
+            if (state == Added || state == Incorrect)
                 toResend.pop_front();
+                // toResend.push_back(seg);
             if (state == NoSize || state == Incorrect) 
                 maxSent = 1;
         }
@@ -150,11 +154,13 @@ AddingStates Connector::trySendFragment(DataSegment *seg) {
     auto [descriptor, state] = (seg->seq == 0) ? make_pair(nullptr, States::Empty) : sent.get(seg->seq);
     printf("Received toSend seq: %d, state: %hhu, type: %d\n", seg->seq, state, seg->type);
     if (state == States::Deleted) return AddingStates::Incorrect;
-    if (state == States::Suppresed)
-        sent.changeState(seg->seq, States::Active);
-    else if (state == States::Empty) {
+    if (state == States::Suppresed) {
+        AddingStates _state = sent.changeState(seg->seq, States::Active);
+        if (_state != AddingStates::Added) return _state;
+    } else if (state == States::Empty) {
         seg->seq = nextSeq;
         auto [_state, _descp] = sent.add((DataSegmentDescriptor){.segment=seg, .sentCount=0});
+        printf("Trying to add, _state: %hhu\n", _state);
         if (_state != AddingStates::Added) return _state;
         nextSeq++;
         seg->window = received.getWindow();

@@ -34,7 +34,6 @@ int main() {
     }
 
     Connector process1(ip, port);
-
     thread processUnit(&Connector::start, &process1);
     ReceiveQueue<FragmentatorI*>& toSend = process1.getToSendQueue();
 

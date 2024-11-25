@@ -50,12 +50,6 @@ public:
     T front() {return segments.front();}
 };
 
-enum ReturnCodes {
-    Success = 0,
-    ACKWasAlreadyProceed = 1,
-    ACKCantBeStoredInThisWindow = 2
-};
-
 enum AddingStates : u8 {
     Added,
     NoSize,
@@ -81,6 +75,7 @@ protected:
 
     inline int getIndex(int seq);
     virtual int getSeq(T elem) = 0;
+    virtual DataSegment* getSeg(T elem) = 0;
     AddingStates add(T elem, u32 size);
     // returns index of deleted or -1 if nothing was deleted
     int del(int seq);
@@ -116,18 +111,20 @@ public:
 class SentMessagesQueue : public ModQueue<DataSegmentDescriptor> {
 protected:
     int getSeq(DataSegmentDescriptor elem) override;
+    DataSegment* getSeg(DataSegmentDescriptor elem) override;
 public:
     SentMessagesQueue(int initCapacity=4, u32 window=5000);
     ~SentMessagesQueue();
     std::pair<AddingStates, DataSegmentDescriptor*> add(DataSegmentDescriptor segment);
     void markAsProcessed(int seq, bool free=false);
-    bool changeState(int seq, States state);
+    AddingStates changeState(int seq, States state);
 };
 
 
 class ReceivedMessagesQueue : public ModQueue<DataSegment*> {
 protected:
     int getSeq(DataSegment* elem) override;
+    DataSegment* getSeg(DataSegment* elem) override;
 public:
     ReceivedMessagesQueue(int initCapacity=16, u32 window=5000);
     ~ReceivedMessagesQueue();

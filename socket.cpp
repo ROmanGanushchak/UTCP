@@ -131,7 +131,7 @@ int Socket::sendSegment(DataSegment *segment) {
     // printAddr(&senderAddr);
 
     std::lock_guard<std::mutex> lock(sendingMutex);
-    // if (true && rand() % 2 == 0) {printf("The message seq: %d, type: %d missed during sending\n", segment->seq, segment->type); return 0;}
+    if (true && rand() % 5 == 0 && segment->type != DataTypes::ACK) {return 0;}
     // else {printf("Message seq: %d will be delivered\n", segment->seq);}
     printf("Seg: %p\n", segment);
     int sentSize = sendto(sock, reinterpret_cast<char*>(segment), segment->getFullLength(), 0, (struct sockaddr*)&senderAddr, sizeof(senderAddr));
