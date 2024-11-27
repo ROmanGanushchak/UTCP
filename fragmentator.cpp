@@ -87,7 +87,7 @@ NoFragmentator::NoFragmentator(DataSegment* seg) {
     seg->seq = 0;
 }
 NoFragmentator::~NoFragmentator() {
-    if (seg) free(seg);
+    if (seg) {free(seg); seg=NULL;}
 }
 
 DataSegment* NoFragmentator::getNextFragment(u16 size) {

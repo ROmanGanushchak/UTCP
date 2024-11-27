@@ -71,7 +71,6 @@ protected:
     std::vector<T> arr;
     std::vector<States> states;
     u32 window;
-    u32 windowUsed;
 
     inline int getIndex(int seq);
     virtual int getSeq(T elem) = 0;
@@ -89,12 +88,10 @@ public:
     // may return NULL as T* if index is invalid
     std::pair<T*, States> get(int seq);
     bool empty() {return elemCount != 0;}
-    bool isFull() {return arr.size() == elemCount;}
+    bool isFull() {return window == elemCount;}
     void setFirst(int _first) { first = _first; }
     u32 getWindow();
-    u32 getWindowSize();
     void setWindow(u32 size);
-    inline bool isAddable(u16 size);
 };
 
 

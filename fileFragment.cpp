@@ -103,7 +103,7 @@ pair<bool, DataSegment*> FileDefragmentator::addNextFrag(DataSegment* seg) {
                 buffer = (char*) realloc(buffer, bufferCap);
             } else {
                 string fileName(buffer + sizeof(FileHeader), nameSize);
-                filePath = FileDefragmentator::toSave + '/' + fileName;
+                filePath = FileDefragmentator::toSave + "\\" + fileName;
                 file = fopen(filePath.c_str(), "wb");
                 if (file == NULL) 
                     printf("File was not opened\n");

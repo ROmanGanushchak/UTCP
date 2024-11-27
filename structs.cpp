@@ -11,7 +11,7 @@ using namespace std;
 template <typename T>
 ModQueue<T>::ModQueue(int initCapacity, u32 window, int firstIndex) 
     : first(firstIndex), elemCount(0), arr(initCapacity), states(initCapacity, States::Empty),
-    window(window), windowUsed(0) {}
+    window(initCapacity) {}
 
 template <typename T>
 void ModQueue<T>::resize(int newSize) {
@@ -43,7 +43,7 @@ void ModQueue<T>::resize(int newSize) {
 
 template <typename T>
 int ModQueue<T>::getIndex(int seq) {
-    if (seq < first || seq >= first + arr.size())
+    if (seq < first || seq >= first + window)
         return -2;
     return seq % arr.size();
 }
@@ -52,7 +52,7 @@ template <typename T>
 pair<T*, States> ModQueue<T>::get(int seq) {
     u32 index = seq % arr.size();
     // printf("State at given seq: %d, index: %hhu, first: %d, size: %d, stateAtIndex: %hhu\n", seq, states[index], first, arr.size(), states[index]);
-    if (seq < first || seq >= first + arr.size() || 
+    if (seq < first || seq >= first + window || 
         (states[index] != States::Active && states[index] != States::Suppresed) ||
         getSeq(arr[index]) != seq)
         return {NULL, States::Empty};
@@ -69,10 +69,9 @@ void ModQueue<T>::updateFirstValue() {
 template <typename T>
 AddingStates ModQueue<T>::add(T elem, u32 size) {
     int seq = getSeq(elem);
-    if (windowUsed + size > window || seq < first || seq >= first + 2*arr.size())
+    if (seq < first) return Incorrect;
+    if (seq >= first + window)
         return NoSize;
-    if (seq >= first + arr.size()) 
-        resize(arr.size() * 2);
     int index = seq % arr.size();
     assert(states[index] == States::Empty);
     if (states[index] == States::Active || states[index] == States::Suppresed) 
@@ -80,7 +79,6 @@ AddingStates ModQueue<T>::add(T elem, u32 size) {
     arr[index] = elem;
     states[index] = States::Active;
     elemCount++;
-    windowUsed += size;
     return Added;
 }
 
@@ -124,18 +122,9 @@ u32 ModQueue<T>::getWindow() {
 }
 
 template <typename T>
-u32 ModQueue<T>::getWindowSize() {
-    return window - windowUsed;
-}
-
-template <typename T>
 void ModQueue<T>::setWindow(u32 size) {
     this->window = window;
-}
-
-template <typename T>
-bool ModQueue<T>::isAddable(u16 size) {
-    return window - windowUsed >= size;
+    if (arr.size() < window) resize(window*1.5);
 }
 
 template <typename T>
@@ -156,7 +145,6 @@ void SentMessagesQueue::markAsProcessed(int seq, bool toFree) {
     int index = del(seq);
     if (index < 0) return;
     dprintf("Marked as proceed %d\n", seq);
-    windowUsed -= arr[index].segment->getFullLength();
     if (toFree) free(arr[index].segment);
 }
 
@@ -166,12 +154,6 @@ AddingStates SentMessagesQueue::changeState(int seq, States state) {
     if (states[index] == States::Deleted || states[index] == States::Empty) 
         return Incorrect;
     if (states[index] == state) return Added;
-    if (state == States::Active) {
-        if (windowUsed + arr[index].segment->getFullLength() > window)
-            return NoSize;
-        windowUsed += arr[index].segment->getFullLength();
-    } else 
-        windowUsed -= arr[index].segment->getFullLength();
     states[index] = state;
     return Added;
 }
@@ -215,10 +197,8 @@ pair<bool, vector<DataSegment*>> ReceivedMessagesQueue::add(DataSegment *elem) {
     int n = arr.size();
     vector<DataSegment*> rez;
     for (; states[first%n] != States::Empty && states[first%n] != States::Suppresed; first++) {
-        if (states[first%n] == States::Active) {
+        if (states[first%n] == States::Active)
             rez.push_back(arr[first%n]);
-            windowUsed -= arr[first%n]->getFullLength();
-        }
         states[first%n] = States::Empty;
     }
     return {true, rez};

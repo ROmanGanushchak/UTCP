@@ -64,7 +64,7 @@ void Connector::start() {
             sent.setWindow(segment->window);
             printf("Fragment received: seq: %d, type: %d, size: %hu, isNext: %d, first: %d\n", segment->seq, segment->type, segment->dataLength, segment->isNextFragment, received.getFirst());
             if (sysMessageHandler(segment)) {
-                if (segment->seq != 0 && segment->type != DataTypes::ACK)
+                if ((segment->seq != 0 && segment->type != DataTypes::ACK) || segment->type == DataTypes::EndConnection)
                     sendAck(segment->seq);
                 free(segment);
                 continue;
@@ -132,27 +132,27 @@ void Connector::start() {
             }
         }
 
-        if (!sent.getWindowSize() && now - lastSendedKeepAlive > 150)
-            sendKeepAlive();
         u16 maxSent = 7 * !isKeepAliveWarning;
         for (; maxSent>0 && !toResend.empty(); maxSent--) {
             DataSegment* seg = toResend.front();
+            toResend.pop_front();
             AddingStates state = trySendFragment(seg);
-            if (state == Added || state == Incorrect)
-                toResend.pop_front();
+            if (!(state == Added || state == Incorrect))
+                toResend.push_back(seg);
             if (state == NoSize || state == Incorrect) 
                 maxSent = 1;
         }
+        FragmentatorI* toPush = nullptr;
         while (maxSent > 0 && !toSend.isEmpty()) {
             FragmentatorI* fr = toSend.front();
             assert(fr != nullptr && "WTF how fr can be NULLLL");
-            for (; maxSent>0 && sent.getWindowSize() - sizeof(DataSegment) > 0 && !fr->isFinished(); maxSent--) {
-                DataSegment* seg = fr->getNextFragment(_min(maxDataSize, sent.getWindowSize() - sizeof(DataSegment)));
+            for (; maxSent>0 && !fr->isFinished(); maxSent--) {
+                DataSegment* seg = fr->getNextFragment(maxDataSize);
                 if (seg == NULL) {printf("Received seg is NULL\n"); break;}
                 AddingStates state = trySendFragment(seg);
                 if (state == Added) continue;
                 if (state == Incorrect) {printf("Trying to add incorrect segment\n"); continue;}
-                toResend.push_back(seg);
+                toPush = new NoFragmentator(seg);
                 maxSent = 0;
                 break;
             }
@@ -161,6 +161,7 @@ void Connector::start() {
                 toSend.pop();
             } else break;
         }
+        if (toPush) toSend.pushFront(toPush);
     }
 }
 
@@ -314,7 +315,7 @@ void Connector::quit(bool conf) {
 
 void Connector::setError(u16 coef) { 
     sock.setError(coef);
-    printf("The error chance is set to 1 / %d\n", coef); 
+    printf("The error chance is set to 1 / %d\n", coef);
 }
 
 void Connector::sendNextWithErr() {

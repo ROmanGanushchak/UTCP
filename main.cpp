@@ -81,7 +81,7 @@ int main() {
             "1. connect <ip> <port> - creates the connection between 2 hosts, works only if both host dont participate in other conversation\n" <<
             "2. SetFragSize <size> - sets the max payload size of the fragment\n" <<
             "3. savePlace <path> - sets the default save place for the files\n" <<
-            "4. setError <chance> - sets the chance of the frame to be lost to 1 / chance, is chance is 0 their is no artificial fragment lost\n" <<
+            "4. sendNextWithErr - sends next 5 messages with an error\n" <<
             "5. send <string> - sends the string to the other host\n" <<
             "6. file <path> - sends the file to the other host, the file name is not changed. \n" <<
             "7. move <fileName> <destinationFolder> - moves the file from the destination folder to the specified place" <<

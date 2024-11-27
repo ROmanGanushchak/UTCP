@@ -31,13 +31,14 @@ function my_protocol.dissector(buffer, pinfo, tree)
 
     local subtree = tree:add(my_protocol, buffer(), "My Custom Protocol")
     subtree:add(f_crc, buffer(0, 2))
-    local data_length = buffer(2, 2):uint()
+    local data_length = buffer(2, 2):le_uint()
     subtree:add(f_data_length, buffer(2, 2))
-    subtree:add(f_seq, buffer(5, 2))
+    local seq = buffer(4, 2):le_uint()
+    subtree:add(f_seq, buffer(4, 2))
     local data_type = buffer(6, 1):uint()
     subtree:add(f_type, buffer(6, 1))
     subtree:add(f_is_next_fragment, buffer(7, 1):bitfield(0, 1))
-    subtree:add(f_window, buffer(8, 2))
+    subtree:add(f_window, buffer(8, 2):le_uint())
 
     if buffer:len() > 10 then
         local data_offset = 10
@@ -46,7 +47,7 @@ function my_protocol.dissector(buffer, pinfo, tree)
     end
 
     local type_description = types[data_type] or "Unknown"
-    pinfo.cols.info:set(string.format("Type: %s, Seq: %d", type_description, buffer(4, 2):uint()))
+    pinfo.cols.info:set(string.format("Type: %s, Seq: %d", type_description, seq))
 end
 
 local udp_table = DissectorTable.get("udp.port")
