@@ -12,9 +12,11 @@ private:
     FILE *file;
     std::string header;
     u16 headerTop;
+    u64 sendSize; u64 overhead;
 public:
     FileFragmentator(FILE* file, std::string name);
     ~FileFragmentator();
+    std::pair<u64, u64> getOverheads() override;
     DataSegment* getNextFragment(u16 maxSize) override;
     bool isFinished() override;
 };
@@ -31,6 +33,7 @@ public:
     FileDefragmentator();
     ~FileDefragmentator();
     std::pair<bool, DataSegment*> addNextFrag(DataSegment* data);
+    std::pair<u64, u64> getOverhead() override;
 };
 
 bool setDefaultSavePath();

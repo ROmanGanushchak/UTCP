@@ -10,6 +10,7 @@ class FragmentatorI {
 public:
     virtual DataSegment* getNextFragment(u16 maxSize) = 0;
     virtual bool isFinished() = 0;
+    virtual std::pair<u64, u64> getOverheads() = 0;
 };
 
 class Fragmentator : public FragmentatorI {
@@ -19,10 +20,12 @@ private:
     u32 size;
     DataTypes type;
     bool isHeader;
+    u64 sentSize; u64 overhead;
 public:
     Fragmentator(char* data, u32 size, DataTypes type, bool isHeader=false);
     ~Fragmentator();
     DataSegment* getNextFragment(u16 maxSize) override;
+    std::pair<u64, u64> getOverheads() override;
     bool isFinished() override;
 };
 
@@ -34,10 +37,11 @@ public:
     ~NoFragmentator();
     DataSegment* getNextFragment(u16 maxSize) override;
     bool isFinished() override;
+    virtual std::pair<u64, u64> getOverheads() override;
 };
 
 class DefragmentatorI {
-private:
+protected:
     std::unordered_map<int, int> sizes;
     u64 start;
 public:
@@ -56,6 +60,14 @@ public:
         for (auto elem : sizes) 
             printf("(%d %d) ", elem.first, elem.second);
         printf("\n");
+    }
+    virtual std::pair<u64, u64> getOverhead() {
+        u64 dataSize=0, overhead=0;
+        for (auto elem : sizes) {
+            dataSize += elem.first * elem.second;
+            overhead += elem.second * sizeof(DataSegment);
+        }
+        return {dataSize, overhead};
     }
 };
 

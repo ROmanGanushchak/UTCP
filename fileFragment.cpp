@@ -21,7 +21,7 @@ bool setDefaultSavePath() {
     return false;
 }
 
-FileFragmentator::FileFragmentator(FILE* file, string name) : file(file) {
+FileFragmentator::FileFragmentator(FILE* file, string name) : file(file), sendSize(0), overhead(0) {
     headerTop = 0;
 
     u16 size = name.size();
@@ -62,7 +62,13 @@ DataSegment* FileFragmentator::getNextFragment(u16 dataSize) {
         } else
             ungetc(last, file);
     }
+    sendSize += seg->dataLength;
+    overhead += seg->getFullLength() - seg->dataLength;
     return seg;
+}
+
+pair<u64, u64> FileFragmentator::getOverheads() {
+    return {sendSize-header.size(), overhead+header.size()};
 }
 
 bool FileFragmentator::isFinished() {
@@ -123,4 +129,9 @@ pair<bool, DataSegment*> FileDefragmentator::addNextFrag(DataSegment* seg) {
         return {true, nullptr};
     }
     return {false, nullptr};
+}
+
+pair<u64, u64> FileDefragmentator::getOverhead() {
+    auto [size, overhead] = DefragmentatorI::getOverhead();
+    return {size-bufferCap, overhead+bufferCap};
 }

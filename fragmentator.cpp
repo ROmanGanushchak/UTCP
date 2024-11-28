@@ -6,7 +6,7 @@
 #include "structs.hpp"
 using namespace std;
 
-Fragmentator::Fragmentator(char* data, u32 size, DataTypes type, bool isHeader) {
+Fragmentator::Fragmentator(char* data, u32 size, DataTypes type, bool isHeader): sentSize(0), overhead(0) {
     this->data = data;
     this->size = size;
     this->type = type;
@@ -38,11 +38,17 @@ DataSegment* Fragmentator::getNextFragment(u16 maxSize) {
     seg->type = isFirst ? type : DataTypes::PureData;
     seg->isNextFragment = top + size != this->size;
     top += size;
+    sentSize += seg->dataLength;
+    overhead += seg->getFullLength() - seg->dataLength;
     return seg;
 }
 
 bool Fragmentator::isFinished() {
     return size == top;
+}
+
+pair<u64, u64> Fragmentator::getOverheads() {
+    return {sentSize, overhead};
 }
 
 
@@ -94,6 +100,10 @@ DataSegment* NoFragmentator::getNextFragment(u16 size) {
     auto temp = seg;
     seg = NULL;
     return temp;
+}
+
+pair<u64, u64> NoFragmentator::getOverheads() {
+    return {INT_MAX, INT_MAX};
 }
 
 bool NoFragmentator::isFinished() {

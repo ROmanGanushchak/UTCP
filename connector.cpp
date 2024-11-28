@@ -20,7 +20,7 @@ char* stringToAlloc(string text) {
 
 Connector::Connector(string ip, u16 port) : queue(1), toSend(2),
     sock(queue, ip, port), 
-    received(16, 240000), sent(16, 65000),
+    received(128), sent(128),
     isWorking(false),
     isKeepAliveWarning(false),
     currentDef(nullptr),
@@ -40,7 +40,6 @@ void Connector::start() {
             TimerUnit timer = timers.front();
             timers.pop_front();
             auto [elem, status] = sent.get(timer.seq);
-            printf("ToResendStatus: %hhu, for seq: %d\n", status, timer.seq);
             assert(status == States::Active && "The value is present in timer but was deleted from SentQueue");
             
             toResend.push_back(elem->segment);
@@ -94,6 +93,9 @@ void Connector::start() {
                 if (packet != fragment) free(fragment);
                 if (!isFinished) continue;
                 if (packet != NULL) packets.push_back(packet);
+                auto [datasize, overhead] = currentDef->getOverhead();
+                printf("For received message overhead: %llu, datasize: %llu the percent of useful data: %lf\n", 
+                        overhead, datasize, (overhead*100) / (double)(overhead+datasize));
                 delete currentDef;
                 currentDef = nullptr;
 
@@ -157,6 +159,11 @@ void Connector::start() {
                 break;
             }
             if (fr && fr->isFinished()) {
+                auto [datasize, overhead] = fr->getOverheads();
+                if (!(datasize == INT_MAX && overhead == INT_MAX)) {
+                    printf("For the sent message overhead: %llu, datasize: %llu the percent of useful data: %lf\n", 
+                        overhead, datasize, (overhead*100) / (double)(overhead+datasize));
+                }
                 delete fr;
                 toSend.pop();
             } else break;
