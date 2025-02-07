@@ -23,7 +23,7 @@ enum class DataTypes : uint8_t {
 };
 
 struct DataSegment {
-    u16 crc; 
+    u16 crc;
     u16 dataLength;
     u16 seq;
     DataTypes type;

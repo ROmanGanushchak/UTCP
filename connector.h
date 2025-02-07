@@ -28,7 +28,7 @@ private:
     u16 lostCnt;
     int timeToMiss = 2000;
     int maxSentCount = 2;
-    u16 maxDataSize = 1000;
+    u16 maxDataSize = 1400;
     void sendConnectionMessage(std::string ip, u16 port, DataTypes type, bool isConfirmed);
     bool sysMessageHandler(DataSegment* segment);
     AddingStates trySendFragment(DataSegment *seg);

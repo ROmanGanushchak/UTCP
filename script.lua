@@ -1,5 +1,6 @@
--- Declare the protocol
-local my_protocol = Proto("MyProtocol", "My Custom Protocol")
+/* Allows to see protocol fields in whireshark */
+
+local my_protocol = Proto("my_protocol", "My Custom Protocol")
 
 local types = {
     [0] = "PureData",

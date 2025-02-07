@@ -53,15 +53,18 @@ DataSegment* FileFragmentator::getNextFragment(u16 dataSize) {
         if (seg == NULL) return NULL;
         size_t red = fread(seg->getExtraData(), 1, seg->dataLength, file);
         assert(red <= dataSize && "More baits where rad from file then allowed");
-        char last = fgetc(file);
-        if (last == EOF) {
+        // char last = fgetc(file);
+        if (feof(file)) {
+            printf("It is last fragment!!!\n");
             u32 toDelete = seg->dataLength - red;
             seg->isNextFragment = false;
             seg->dataLength -= toDelete;
             seg = (DataSegment*)realloc(seg, seg->getFullLength());
-        } else
-            ungetc(last, file);
+        } 
+        // else ungetc(last, file);
     }
+    if (!seg->isNextFragment)  printf("The file ended\n");
+    
     sendSize += seg->dataLength;
     overhead += seg->getFullLength() - seg->dataLength;
     return seg;

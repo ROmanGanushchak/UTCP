@@ -56,6 +56,11 @@ void Connector::start() {
             if (segment->crc != 0) {
                 if (segment->isNextFragment || segment->type == DataTypes::PureData) 
                     lostCnt++;
+                if (segment->type != DataTypes::KeepAlive) {
+                    segment->type = DataTypes::Resend;
+                    initCrc(segment);
+                    sock.sendSegment(segment);
+                }
                 printf("The fragment seq: %d, type: %d was received with an error\n", segment->seq, segment->type);
                 free(segment);
                 continue;
@@ -95,7 +100,7 @@ void Connector::start() {
                 if (packet != NULL) packets.push_back(packet);
                 auto [datasize, overhead] = currentDef->getOverhead();
                 printf("For received message overhead: %llu, datasize: %llu the percent of useful data: %lf\n", 
-                        overhead, datasize, (overhead*100) / (double)(overhead+datasize));
+                        overhead, datasize, (datasize*100) / (double)(overhead+datasize));
                 delete currentDef;
                 currentDef = nullptr;
 
@@ -162,7 +167,7 @@ void Connector::start() {
                 auto [datasize, overhead] = fr->getOverheads();
                 if (!(datasize == INT_MAX && overhead == INT_MAX)) {
                     printf("For the sent message overhead: %llu, datasize: %llu the percent of useful data: %lf\n", 
-                        overhead, datasize, (overhead*100) / (double)(overhead+datasize));
+                        overhead, datasize, (datasize*100) / (double)(overhead+datasize));
                 }
                 delete fr;
                 toSend.pop();
@@ -174,7 +179,7 @@ void Connector::start() {
 
 AddingStates Connector::trySendFragment(DataSegment *seg) {
     auto [descriptor, state] = (seg->seq == 0) ? make_pair(nullptr, States::Empty) : sent.get(seg->seq);
-    printf("Received toSend seq: %d, state: %hhu, type: %d\n", seg->seq, state, seg->type);
+    printf("Received toSend seq: %d, state: %hhu, type: %d, isNext: %d\n", seg->seq, state, seg->type, seg->isNextFragment);
     if (state == States::Deleted) return AddingStates::Incorrect;
     if (state == States::Suppresed) {
         AddingStates _state = sent.changeState(seg->seq, States::Active);
@@ -213,6 +218,15 @@ bool Connector::sysMessageHandler(DataSegment* seg) {
         sock.sendSegment(&_seg);
         return true;
     }
+    case DataTypes::Resend: {
+        auto seq = seg->seq;
+        auto [descp, state] = sent.get(seq);
+        if (state != States::Active && state != States::Suppresed) return false;
+        sock.sendSegment(descp->segment);
+        return true;
+    }
+    // sendNextWithErr
+    // send D:/failed.txt
     case DataTypes::Connection: {
         if (sock.getIsConfigured()) {
             printf("Trying to connect while last connection is still active\n");
@@ -295,8 +309,8 @@ void Connector::finish() {
 }
 
 pair<bool, string> Connector::setMaxFragmentSize(u16 size) {
-    if (size <= 0 || size + sizeof(DataSegment) > 1500) 
-        return {true, "The provided value has to be in the range of 0 and 1490"}; // 1500-sizeof(DataSegment)
+    if (size <= 0 || size + sizeof(DataSegment) > 1452) 
+        return {true, "The provided value has to be in the range of 1 to 1452-sizeof(DataSegment){probably 11}"}; // 1500-sizeof(DataSegment)
     this->maxDataSize = size;
     return {false, ""};
 }
