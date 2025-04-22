@@ -14,6 +14,7 @@
 
 using namespace std;
 
+/* is responsible for console interface */
 int main() {
     setDefaultSavePath();
     string ip;
